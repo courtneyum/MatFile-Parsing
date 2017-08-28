@@ -1,22 +1,10 @@
 CC=clang
-CFLAGS=-c -g -Wall
+CFLAGS=-I. -g -Wall
+DEPS = mapping.h
+OBJ = chunkedData.o adler32.o compress.o crc32.o gzio.o uncompr.o deflate.o trees.o zutil.o inflate.o infback.o inftrees.o inffast.o mapping.o fileHelper.o numberHelper.o queue.o 
 
-all: chunked
+%.o: %.c $(DEPS)
+	$(CC) -c -o $@ $< $(CFLAGS)
 
-chunked: chunkedData.o fileHelper.o numberHelper.o queue.o
-	$(CC) chunkedData.o fileHelper.o numberHelper.o queue.o -o chunked -lm
-
-chunkedData.o: chunkedData.c
-	$(CC) $(CFLAGS) chunkedData.c
-
-fileHelper.o: fileHelper.c
-	$(CC) $(CFLAGS) fileHelper.c
-
-numberHelper.o: numberHelper.c
-	$(CC) $(CFLAGS) numberHelper.c
-
-queue.o: queue.c
-	$(CC) $(CFLAGS) queue.c
-
-clean: 
-	rm *o chunked
+chunkedData: $(OBJ)
+	$(CC) -o $@ $^ $(CFLAGS) -lm
