@@ -10,13 +10,6 @@ typedef enum
 	GROUP,
 	CHUNK
 } NodeType;
-
-typedef struct 
-{
-	uint32_t size;
-	uint32_t filter_mask;
-	uint64_t chunk_start[DIMS + 1];
-} Key;
 typedef struct tree_node_ TreeNode;
 struct tree_node_
 {
@@ -24,20 +17,21 @@ struct tree_node_
 	NodeType node_type;
 	int node_level;
 	uint16_t num_entries;
-	Key* keys;
-	TreeNode* children;
 	uint32_t size;
+	uint32_t filter_mask;
+	uint64_t chunk_start[DIMS + 1];
+	TreeNode* parent;
+	TreeNode* children;
 };
 
 void fillNode(TreeNode* node);
-int writeToFile(uint64_t address, uint32_t size);
+int writeToFile(TreeNode* node);
 void freeTree(TreeNode* node);
 
 int main()
 {
 	char* filename = "my_struct1.mat";
 	TreeNode root;
-	root.address = 0x15e8;
 	//init maps
 	maps[0].used = FALSE;
 	maps[1].used = FALSE;
@@ -45,7 +39,13 @@ int main()
 	//init queue
 	flushQueue();
 	flushHeaderQueue();
-
+	int* num_objects = (int *)malloc(sizeof(int));
+	char variable_name[16];
+	strcpy(variable_name, "my_struct.array");
+	Data* objects = getDataObject("my_struct1.mat", variable_name, num_objects);
+	root.address = objects[0].chunk.tree_address;
+	printf("Tree address = 0x%lx\n", root.address);
+	printf("Chunk dims = [%d, %d, %d]\n", objects[0].chunk.dims[0], objects[0].chunk.dims[1], objects[0].chunk.dims[2]);
 	//open the file descriptor
 	fd = open(filename, O_RDWR);
 	if (fd < 0)
@@ -71,15 +71,15 @@ void fillNode(TreeNode* node)
 {
 	static int leaf_counter = 0;
 	static int node_counter = 0;
-	if (node->address == UNDEF_ADDR)
+	/*if (node->address == UNDEF_ADDR)
 	{
 		return;
-	}
+	}*/
 	char* tree_pointer = navigateTo(node->address, 8, TREE);
 	if (node->node_level == -1)
 	{
 		leaf_counter++;
-		writeToFile(node->address, node->size);
+		writeToFile(node);
 		return;
 	}
 	node_counter++;
@@ -89,30 +89,33 @@ void fillNode(TreeNode* node)
 	int bytes_needed = 8 + 2*s_block.size_of_offsets + node->num_entries*(KEY_SIZE + s_block.size_of_offsets);
 	tree_pointer = navigateTo(node->address, bytes_needed, TREE);
 
-	node->keys = (Key *)malloc(node->num_entries*sizeof(Key));
 	node->children = (TreeNode *)malloc(node->num_entries*sizeof(TreeNode));
 	
 	char* key_pointer = tree_pointer + 8 + 2*s_block.size_of_offsets;
 	for (int i = 0; i < node->num_entries; i++)
 	{
-		node->keys[i].size = getBytesAsNumber(key_pointer, 4);
-		node->children[i].size = node->keys[i].size;
+		node->children[i].size = getBytesAsNumber(key_pointer, 4);
 		node->children[i].node_level = node->node_level - 1;
-		node->keys[i].filter_mask = getBytesAsNumber(key_pointer + 4, 4);
-		for (int j = 0; j < DIMS + 1; j++)
+		node->children[i].filter_mask = getBytesAsNumber(key_pointer + 4, 4);
+		for (int j = DIMS - 1; j >= 0; j--)
 		{
-			node->keys[i].chunk_start[j] = getBytesAsNumber(key_pointer + (j+1)*8, 8);
+			node->children[i].chunk_start[j] = getBytesAsNumber(key_pointer + (DIMS - j)*8, 8);
 		}
 		node->children[i].address = getBytesAsNumber(key_pointer + (DIMS + 2)*8, s_block.size_of_offsets) + s_block.base_address;
+		node->children[i].parent = node;
 		fillNode(&node->children[i]);
 		//re-navigate because the memory may have been unmapped in the above call
 		tree_pointer = navigateTo(node->address, bytes_needed, TREE);
 		key_pointer = (i+1)*(KEY_SIZE + s_block.size_of_offsets) + tree_pointer + 2*s_block.size_of_offsets + 8;
 	}
 }
-int writeToFile(uint64_t address, uint32_t size)
+int writeToFile(TreeNode* node)
 {
 	static int call_number = 0;
+	uint64_t address = node->address;
+	uint32_t size = node->size;
+	char* info = (char *)malloc(100);
+	sprintf(info, "address: 0x%lx, size: 0x%x, chunk start: [%lu,%lu,%lu]\n\n", node->address, node->size, node->chunk_start[0], node->chunk_start[1], node->chunk_start[2]);
 
 	char filename[51] = "compressData/UncompressedDataElement";
 	char spec[10];
@@ -131,6 +134,7 @@ int writeToFile(uint64_t address, uint32_t size)
 		perror("Could not open file to write to.");
 		exit(1);
 	}
+	fwrite(info, strlen(info), 1, uncomprfp);
 
 	bytesToRead = size;
 
@@ -196,7 +200,6 @@ void freeTree(TreeNode* node)
 	{
 		return;
 	}
-	free(node->keys);
 
 	for(int i = 0; i < node->num_entries; i++)
 	{

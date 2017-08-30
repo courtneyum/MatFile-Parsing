@@ -84,6 +84,13 @@ typedef enum
 	REF,
 	STRUCT
 } Datatype;
+typedef struct 
+{
+	uint8_t num_dims;
+	uint64_t tree_address;
+	uint32_t* dims;
+	uint32_t elem_size;
+}Chunk;
 
 typedef struct data_ Data;
 struct data_
@@ -99,6 +106,7 @@ struct data_
 	uint64_t this_tree_address;
 	uint64_t parent_tree_address;
 	Data* sub_objects;
+	Chunk chunk;
 } ;
 
 
