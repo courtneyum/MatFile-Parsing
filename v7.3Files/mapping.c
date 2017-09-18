@@ -108,18 +108,52 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 				while (object->dims[index] > 0)
 				{
 					num_elems *= object->dims[index];
+					object->num_dims++;
 					index++;
 				}
+				object->num_elems = num_elems;
 				break;
 			case 3:
 				// Datatype message
-				object->type = readDataTypeMessage(msg_pointer, msg_size);
+				readDataTypeMessage(object, msg_pointer, msg_size);
 				break;
 			case 8:
 				// Data Layout message
 				//assume version 3
 				layout_class = *(msg_pointer + 1);
-				data_pointer = msg_pointer + 4;
+				switch (layout_class)
+				{
+					case 0:
+						data_pointer = msg_pointer + 4;
+						break;
+					case 1:
+						//does matlab ever use contiguous storage?
+						break;
+					case 2:
+						object->chunk.num_dims = getBytesAsNumber(msg_pointer + 2, 1);
+						object->chunk.dims = (uint32_t *)malloc(object->chunk.num_dims*sizeof(uint32_t));
+						object->chunk.tree_address = getBytesAsNumber(msg_pointer + 3, s_block.size_of_offsets) + s_block.base_address;
+						for (int j = object->chunk.num_dims - 2; j >= 0; j--)
+						{
+							object->chunk.dims[j] = getBytesAsNumber(msg_pointer + 3 + s_block.size_of_offsets + (-j + object->chunk.num_dims - 2)*4, 4);
+						}
+						object->chunk.elem_size = getBytesAsNumber(msg_pointer + 3 + s_block.size_of_offsets + object->chunk.num_dims*4 - 4, 4);
+						break;
+				}
+
+				uint64_t cu, du;
+				for(int i = 0; i < object->num_dims; i++)
+				{
+					du = 1;
+					cu = 0;
+					for(int k = 0; k < i + 1; k++)
+					{
+						cu += (object->chunk.dims[k] - 1)*du;
+						du *= object->dims[k];
+					}
+					object->chunk.chunk_update[i] = du - cu - 1;
+				}
+				
 				break;
 			case 12:
 				//attribute message
@@ -203,6 +237,9 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 					object->char_data[j] = getBytesAsNumber(data_pointer + j*elem_size, elem_size);
 				}
 			}
+			break;
+		case 2:
+			//chunked storage
 			break;
 		default:
 			printf("Unknown Layout class encountered with header at address 0x%lx\n", header_address);
@@ -330,75 +367,106 @@ Data* organizeObjects(Data* objects, int num_objs)
 	}
 	return super_objects;
 }
-/*void deepCopy(Data* dest, Data* source)
+void placeDataWithIndexMap(Data* object, char* data_pointer, uint64_t num_elems, size_t elem_size, const uint64_t* index_map)
 {
-	int num_elems = 1, num_dims = 0, index = 0;
-	while (source->dims[index] > 0)
+	
+	//reverse the bytes if the byte order doesn't match the cpu architecture
+	/*if(__BYTE_ORDER != data_byte_order)
 	{
-		num_dims++;
-		num_elems *= source->dims[index];
-		index++;
-	}
-
-	dest->type = source->type;
-
-	strcpy(dest->matlab_class, source->matlab_class);
-
-	dest->dims = (uint32_t *)malloc((num_dims + 1)*sizeof(uint32_t));
-	for (index = 0; i < num_dims; i++)
-	{
-		dest->dims[i] = source->dims[i];
-	}
-	dest->dims[num_dims] = 0;
-
-	if (source->char_data != NULL)
-	{
-		dest->char_data = (char *)malloc(num_elems);
-		dest->double_data = NULL;
-		dest->udouble_data = NULL;
-		dest->ushort_data = NULL;
-		for (index = 0; index < num_elems; index++)
+		for(uint64_t j = 0; j < num_elems; j += elem_size)
 		{
-			dest->char_data[index] = source->char_data[index];
+			reverseBytes(data_pointer + j, elem_size);
 		}
-	}
-	else if (source->double_data != NULL)
+	}*/
+	
+	
+	int object_data_index = 0;
+	switch(object->type)
 	{
-		dest->double_data = (char *)malloc(num_elems*sizeof(double));
-		dest->char_data = NULL;
-		dest->udouble_data = NULL;
-		dest->ushort_data = NULL;
-		for (index = 0; index < num_elems; index++)
-		{
-			dest->double_data[index] = source->double_data[index];
-		}
+		case CHAR:
+			for(uint64_t j = 0; j < num_elems; j++)
+			{
+				memcpy(&object->char_data[index_map[j]], data_pointer + object_data_index * elem_size, elem_size);
+				object_data_index++;
+			}
+			break;
+		/*case UINT8:
+			for(uint64_t j = 0; j < num_elems; j++)
+			{
+				memcpy(&object->data_arrays.ui8_data[index_map[j]], data_pointer + object_data_index * elem_size, elem_size);
+				object_data_index++;
+			}
+			break;*/
+		/*case SHORT:
+			for(uint64_t j = 0; j < num_elems; j++)
+			{
+				memcpy(&object->data_arrays.i16_data[index_map[j]], data_pointer + object_data_index * elem_size, elem_size);
+				object_data_index++;
+			}
+			break;*/
+		case UINT16_T:
+			for(uint64_t j = 0; j < num_elems; j++)
+			{
+				memcpy(&object->ushort_data[index_map[j]], data_pointer + object_data_index * elem_size, elem_size);
+				object_data_index++;
+			}
+			break;
+		/*case INT32:
+			for(uint64_t j = 0; j < num_elems; j++)
+			{
+				memcpy(&object->data_arrays.i32_data[index_map[j]], data_pointer + object_data_index * elem_size, elem_size);
+				object_data_index++;
+			}
+			break;*/
+		/*case UINT32:
+			for(uint64_t j = 0; j < num_elems; j++)
+			{
+				memcpy(&object->data_arrays.ui32_data[index_map[j]], data_pointer + object_data_index * elem_size, elem_size);
+				object_data_index++;
+			}
+			break;*/
+		/*case INT64:
+			for(uint64_t j = 0; j < num_elems; j++)
+			{
+				memcpy(&object->data_arrays.i64_data[index_map[j]], data_pointer + object_data_index * elem_size, elem_size);
+				object_data_index++;
+			}
+			break;*/
+		/*case UINT64:
+			for(uint64_t j = 0; j < num_elems; j++)
+			{
+				memcpy(&object->data_arrays.ui64_data[index_map[j]], data_pointer + object_data_index * elem_size, elem_size);
+				object_data_index++;
+			}
+			break;*/
+		/*case SINGLE:
+			for(uint64_t j = 0; j < num_elems; j++)
+			{
+				memcpy(&object->data_arrays.single_data[index_map[j]], data_pointer + object_data_index * elem_size, elem_size);
+				object_data_index++;
+			}
+			break;*/
+		case DOUBLE:
+			for(uint64_t j = 0; j < num_elems; j++)
+			{
+				memcpy(&object->double_data[index_map[j]], data_pointer + object_data_index * elem_size, elem_size);
+				object_data_index++;
+			}
+			break;
+		case REF:
+			for(uint64_t j = 0; j < num_elems; j++)
+			{
+				memcpy(&object->udouble_data[index_map[j]], data_pointer + object_data_index * elem_size, elem_size);
+				object_data_index++;
+			}
+			break;
+		case STRUCT:
+		//case FUNCTION_HANDLE:
+		//case TABLE:
+		default:
+			//nothing to be done
+			break;
+		
 	}
-	else if (source->udouble_data != NULL)
-	{
-		dest->udouble_data = (char *)malloc(num_elems*sizeof(uint64_t));
-		dest->double_data = NULL;
-		dest->char_data = NULL;
-		dest->ushort_data = NULL;
-		for (index = 0; index < num_elems; index++)
-		{
-			dest->udouble_data[index] = source->udouble_data[index];
-		}
-	}
-	else if (source->ushort_data != NULL)
-	{
-		dest->ushort_data = (char *)malloc(num_elems*sizeof(uint16_t));
-		dest->double_data = NULL;
-		dest->udouble_data = NULL;
-		dest->char_data = NULL;
-		for (index = 0; index < num_elems; index++)
-		{
-			dest->ushort_data[index] = source->ushort_data[index];
-		}
-	}
-
-	strcpy(dest->name, source->name);
-
-	dest->this_tree_address = source->this_tree_address;
-	dest->parent_tree_address = source->parent_tree_address;
-	dest->sub_objects = source->sub_objects;
-}*/
+	
+}

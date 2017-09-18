@@ -215,18 +215,19 @@ uint32_t* readDataSpaceMessage(char* msg_pointer, uint16_t msg_size)
 	uint32_t* dims = (uint32_t *)malloc(sizeof(int)*(num_dims + 1));
 	//uint64_t bytes_read = 0;
 
-	for (int i = 0; i < num_dims; i++)
+	for (int i = num_dims - 1; i >= 0; i--)
 	{
 		dims[i] = getBytesAsNumber(msg_pointer + 8 + i*s_block.size_of_lengths, 4);
 	}
 	dims[num_dims] = 0;
 	return dims;
 }
-Datatype readDataTypeMessage(char* msg_pointer, uint16_t msg_size)
+void readDataTypeMessage(Data* object, char* msg_pointer, uint16_t msg_size)
 {
 	//assume version 1
 	uint8_t class = *(msg_pointer) & 7; //only want bottom 4 bits
 	uint32_t size = *(msg_pointer + 4);
+	object->elem_size = size;
 	Datatype type = UNDEF;
 
 	switch(class)
@@ -264,7 +265,7 @@ Datatype readDataTypeMessage(char* msg_pointer, uint16_t msg_size)
 			type = UNDEF;
 			break;
 	}
-	return type;
+	object->type = type;
 
 }
 void freeDataObjects(Data* objects, int num)

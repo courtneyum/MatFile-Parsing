@@ -19,13 +19,18 @@ struct tree_node_
 	uint16_t num_entries;
 	uint32_t size;
 	uint32_t filter_mask;
-	uint64_t chunk_start[DIMS + 1];
+	uint64_t* chunk_start;
+	uint64_t* chunk_dims;
 	TreeNode* parent;
 	TreeNode* children;
 };
 
-void fillNode(TreeNode* node);
-int writeToFile(TreeNode* node);
+//void fillNode(TreeNode* node, int* start);
+void getData(TreeNode* node, Data* object, uint64_t* start, int num_elems);
+int insideChunk(uint64_t* chunk_start, uint32_t* chunk_dims, uint64_t* start, uint32_t* dims);
+int numChunkElems(uint64_t* chunk_start, uint32_t* chunk_dims, uint32_t* dims);
+int fillData(TreeNode* node, Data* object, uint64_t* start, int num_elems);
+//int writeToFile(TreeNode* node);
 void freeTree(TreeNode* node);
 
 int main()
@@ -58,31 +63,57 @@ int main()
 	size_t file_size = lseek(fd, 0, SEEK_END);
 
 	//find superblock;
-
 	s_block = getSuperblock(fd, file_size);
-
-	fillNode(&root);
+	uint64_t* start = (uint64_t *)malloc(sizeof(int)*DIMS);
+	start[0] = 51;
+	start[1] = 50;
+	start[2] = 49;
+	int num_elems = 100;
+	objects[0].double_data = (double *)calloc(num_elems, sizeof(double));
+	
+	int i;
+	root.chunk_start = (uint64_t *)malloc(DIMS*sizeof(uint64_t));
+	for (i = 0; i < DIMS; i++)
+	{
+		root.chunk_start[i] = 0;
+	}
+	getData(&root, &objects[0], start, num_elems);
+	
 	close(fd);
 	freeTree(&root);
 	printf("Complete\n");
 
 }
-void fillNode(TreeNode* node)
+//dims is the dims of the dataset
+void getData(TreeNode* node, Data* object, uint64_t* start, int num_elems)
 {
-	static int leaf_counter = 0;
-	static int node_counter = 0;
+	//static int leaf_counter = 0;
+	//static int node_counter = 0;
 	/*if (node->address == UNDEF_ADDR)
 	{
 		return;
 	}*/
+	//static int curr_elems = 0;
 	char* tree_pointer = navigateTo(node->address, 8, TREE);
 	if (node->node_level == -1)
 	{
-		leaf_counter++;
-		writeToFile(node);
+		//leaf_counter++;
+		//writeToFile(node);
+		//return node;
+		int err = 0;
+		if (insideChunk(node->chunk_start, object->chunk.dims, start, object->dims))
+		{
+			//there is wanted data in this node.
+			err = fillData(node, object, start, num_elems);
+			if (err < 0)
+			{
+				printf("Decompression error: %d\n", err);
+				exit(EXIT_FAILURE);
+			}
+		}
 		return;
 	}
-	node_counter++;
+	//node_counter++;
 	node->node_type = getBytesAsNumber(tree_pointer + 4, 1);
 	node->node_level = getBytesAsNumber(tree_pointer + 5, 1);
 	node->num_entries = getBytesAsNumber(tree_pointer + 6, 2);
@@ -94,54 +125,103 @@ void fillNode(TreeNode* node)
 	char* key_pointer = tree_pointer + 8 + 2*s_block.size_of_offsets;
 	for (int i = 0; i < node->num_entries; i++)
 	{
+		node->children[i].chunk_start = (uint64_t *)malloc((DIMS + 1)*sizeof(uint64_t));
 		node->children[i].size = getBytesAsNumber(key_pointer, 4);
 		node->children[i].node_level = node->node_level - 1;
 		node->children[i].filter_mask = getBytesAsNumber(key_pointer + 4, 4);
-		for (int j = DIMS - 1; j >= 0; j--)
+		for (int j = object->num_dims - 1; j >= 0; j--)
 		{
 			node->children[i].chunk_start[j] = getBytesAsNumber(key_pointer + (DIMS - j)*8, 8);
 		}
 		node->children[i].address = getBytesAsNumber(key_pointer + (DIMS + 2)*8, s_block.size_of_offsets) + s_block.base_address;
 		node->children[i].parent = node;
-		fillNode(&node->children[i]);
+		//if (insideChunk(node->children[i].chunk_start, object->chunk.dims, start, object->dims))
+		if (subToInd(object->dims, node->children[i].chunk_start) <= subToInd(object->dims, start))
+		{
+			//this condition is only a heuristic for whether we should continue
+			//if not in a leaf node it is impossible to know how many elements the node contains
+			getData(&node->children[i], object, start, num_elems);
+		}
+		
 		//re-navigate because the memory may have been unmapped in the above call
 		tree_pointer = navigateTo(node->address, bytes_needed, TREE);
 		key_pointer = (i+1)*(KEY_SIZE + s_block.size_of_offsets) + tree_pointer + 2*s_block.size_of_offsets + 8;
 	}
 }
-int writeToFile(TreeNode* node)
+int insideChunk(uint64_t* chunk_start, uint32_t* chunk_dims, uint64_t* start, uint32_t* dims)
 {
-	static int call_number = 0;
-	uint64_t address = node->address;
-	uint32_t size = node->size;
-	char* info = (char *)malloc(100);
-	sprintf(info, "address: 0x%lx, size: 0x%x, chunk start: [%lu,%lu,%lu]\n\n", node->address, node->size, node->chunk_start[0], node->chunk_start[1], node->chunk_start[2]);
-
-	char filename[51] = "compressData/UncompressedDataElement";
-	char spec[10];
-	sprintf(spec, "%d", call_number);
-	strcat(filename, spec);
-	strcat(filename, ".txt");
+	int num_dims = 0;
+	int i = 0;
+	while (dims[num_dims] > 0)
+	{
+		num_dims++;
+	}
+	int ret = TRUE;
+	if (subToInd(dims, chunk_start) <= subToInd(dims, start))
+	{
+		for (i = 0; i < num_dims; i++)
+		{
+			if (chunk_start[i] + chunk_dims[i] < start[i])
+			{
+				ret = FALSE;
+				break;
+			}
+		}
+	}
+	else
+	{
+		ret = FALSE;
+	}
+	return ret;
+}
+int numChunkElems(uint64_t* chunk_start, uint32_t* chunk_dims, uint32_t* dims)
+{
+	int num_dims = 0;
+	int i = 0;
+	int num_chunk_elems = 1;
+	while (dims[num_dims] > 0)
+	{
+		num_dims++;
+	}
+	for (i = 0; i < num_dims; i++)
+	{
+		if (chunk_dims[i] + chunk_start[i] <= dims[i])
+		{
+			num_chunk_elems*=chunk_dims[i];
+		}
+		else if (chunk_dims[i] + chunk_start[i] > dims[i])
+		{
+			num_chunk_elems*=(dims[i] - chunk_start[i]);
+		}
+	}
+	return num_chunk_elems;
+}
+int fillData(TreeNode* node, Data* object, uint64_t* start, int num_elems)
+{
 	
-	int bytesToRead;
 	char *dataBuffer, *uncompr;
+	int curr_chunk_index, chunk_start_index;
+	uint64_t index_map[CHUNK_BUFFER_SIZE];
+	object->chunk.chunk_size = numChunkElems(node->chunk_start, object->chunk.dims, object->dims);
+	chunk_start_index = subToInd(object->dims, node->chunk_start);
 
-	FILE *uncomprfp;
+	//FILE *uncomprfp;
 
-	uncomprfp = fopen(filename, "w");
+
+	/*uncomprfp = fopen(filename, "w");
 	if (!uncomprfp)
 	{
 		perror("Could not open file to write to.");
 		exit(1);
 	}
-	fwrite(info, strlen(info), 1, uncomprfp);
+	//fwrite(info, strlen(info), 1, uncomprfp);*/
 
-	bytesToRead = size;
 
 	//read compressed data element into dataBuffer
-	dataBuffer = navigateTo(address, size, 0);
+	dataBuffer = navigateTo(node->address, node->size, 0);
+	uint32_t chunk_pos[HDF5_MAX_DIMS + 1] = { 0 };
 
-	uncompr = (char *)malloc(COMP_FACTOR*bytesToRead*sizeof(char));
+	uncompr = (char *)malloc(COMP_FACTOR*node->size*sizeof(char));
 
 	int ret;
 	unsigned have;
@@ -159,14 +239,15 @@ int writeToFile(TreeNode* node)
 		exit(EXIT_FAILURE);
 	}
 
+	curr_chunk_index = 0;
 	do
 	{
-		strm.avail_in = bytesToRead;
+		strm.avail_in = node->size;
 		strm.next_in = (unsigned char *)dataBuffer;
 		
 		do
 		{
-			strm.avail_out = COMP_FACTOR*bytesToRead;
+			strm.avail_out = COMP_FACTOR*node->size;
 			strm.next_out = (unsigned char *)uncompr;
 			ret = inflate(&strm, Z_NO_FLUSH);
 			assert(ret != Z_STREAM_ERROR);
@@ -179,19 +260,48 @@ int writeToFile(TreeNode* node)
 					(void)inflateEnd(&strm);
 					return ret;
 			}
-			have = COMP_FACTOR*bytesToRead - strm.avail_out;
-			if (fwrite(uncompr, 1, have, uncomprfp) != have || ferror(uncomprfp))
+			have = COMP_FACTOR*node->size - strm.avail_out;
+			
+			//copy over data
+			memset(chunk_pos, 0 , sizeof(chunk_pos));
+			uint8_t curr_max_dim = 2;
+			uint64_t db_pos = 0;
+			for(uint64_t index = chunk_start_index, anchor = 0; index < object->num_elems && db_pos < object->chunk.chunk_size; anchor = db_pos)
+			{
+				for (;db_pos < anchor + object->chunk.dims[0] && index < object->num_elems; db_pos++, index++)
+				{
+					index_map[db_pos] = index;
+				}
+				chunk_pos[1]++;
+				uint8_t use_update = 0;
+				for(uint8_t j = 1; j < curr_max_dim; j++)
+				{
+					if(chunk_pos[j] == object->chunk.dims[j])
+					{	
+						chunk_pos[j] = 0;
+						chunk_pos[j+1]++;
+						curr_max_dim = curr_max_dim <= j + 1 ? curr_max_dim + (uint8_t)1 : curr_max_dim;
+						use_update++;
+					}
+				}
+				index += object->chunk.chunk_update[use_update];
+			}
+		
+			placeDataWithIndexMap(object, &uncompr[0], db_pos, object->elem_size, index_map);
+			curr_chunk_index += have;
+			/*if (fwrite(uncompr, 1, have, uncomprfp) != have || ferror(uncomprfp))
 			{
 				(void)inflateEnd(&strm);
 				return Z_ERRNO;
-			}
-		} while (strm.avail_out == 0);
+			}*/
+			have = 0;
+		} while (strm.avail_out == 0);// && curr_chunk_index <= num_chunk_elems); //don't want to bother decompressing padding
 	} while (ret != Z_STREAM_END);
 
-	fclose(uncomprfp);
+	//fclose(uncomprfp);
 	free(uncompr);
 
-	call_number++;
+	//call_number++;
 	return ret;
 }
 void freeTree(TreeNode* node)

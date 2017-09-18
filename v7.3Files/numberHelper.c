@@ -1,5 +1,19 @@
 #include "mapping.h"
 
+
+void reverseBytes(char* data_pointer, size_t num_elems)
+{
+	char* start,* end;
+	
+	for (start = data_pointer, end = start + num_elems - 1; start < end; ++start, --end )
+	{
+		char swap = *start;
+		*start = *end;
+		*start = *end;
+		*end = swap;
+	}
+	
+}
 uint64_t getBytesAsNumber(char* chunk_start, int num_bytes)
 {
 	uint64_t ret = 0;
@@ -55,14 +69,14 @@ int roundUp(int numToRound)
 }
 //indices is assumed to have the same amount of allocated memory as dims
 //indices is an out parameter
-void indToSub(int index, uint32_t* dims, uint32_t* indices)
+void indToSub(int index, uint32_t* dims, uint64_t* indices)
 {
 	int num_dims = 0;
 	int num_elems = 1;
 	int i = 0;
 	while (dims[i] > 0)
 	{
-		num_elems *= dims[i];
+		num_elems *= dims[i++];
 		num_dims++;
 	}
 
@@ -84,4 +98,28 @@ void indToSub(int index, uint32_t* dims, uint32_t* indices)
 	mult *= dims[num_dims - 2];
 	sub += indices[num_dims - 2];
 	indices[num_dims - 1] = (index + 1 - sub)/divide;
+}
+//here indices is an in parameter
+int subToInd(uint32_t* dims, uint64_t* indices)
+{
+	int num_dims = 0;
+	int num_elems = 1;
+	int i = 0;
+	while (dims[i] > 0)
+	{
+		num_elems *= dims[i++];
+		num_dims++;
+	}
+	int index = dims[num_dims - 1];
+	int plus = 0;
+	int mult = 1;
+	i = num_dims - 2;
+	while (i > 0)
+	{
+		mult*=dims[i+1];
+		plus = indices[i]*mult;
+		index+= plus;
+		i--;
+	}
+	return index;
 }

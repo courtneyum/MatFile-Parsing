@@ -22,9 +22,11 @@
 #define MAX_OBJS 100
 #define CLASS_LENGTH 20
 #define NAME_LENGTH 30
-#define MAX_SUB_OBJECTS 30;
-#define USE_SUPER_OBJECT_CELL 1;
-#define USE_SUPER_OBJECT_ALL 2;
+#define MAX_SUB_OBJECTS 30
+#define USE_SUPER_OBJECT_CELL 1
+#define USE_SUPER_OBJECT_ALL 2
+#define HDF5_MAX_DIMS 32
+#define CHUNK_BUFFER_SIZE 1048576 /*1MB size of the buffer used in zlib*/
 
 typedef struct
 {
@@ -90,6 +92,8 @@ typedef struct
 	uint64_t tree_address;
 	uint32_t* dims;
 	uint32_t elem_size;
+	uint64_t chunk_update[HDF5_MAX_DIMS];
+	uint32_t chunk_size;
 }Chunk;
 
 typedef struct data_ Data;
@@ -107,6 +111,9 @@ struct data_
 	uint64_t parent_tree_address;
 	Data* sub_objects;
 	Chunk chunk;
+	int num_dims;
+	int num_elems;
+	uint32_t elem_size;
 } ;
 
 
@@ -118,13 +125,17 @@ char* navigateTo_map(MemMap map, uint64_t address, uint64_t bytes_needed, int ma
 void readTreeNode(char* tree_address);
 void readSnod(char* snod_pointer, char* heap_pointer, char* var_name, uint64_t prev_tree_address);
 uint32_t* readDataSpaceMessage(char* msg_pointer, uint16_t msg_size);
-Datatype readDataTypeMessage(char* msg_pointer, uint16_t msg_size);
+void readDataTypeMessage(Data* object, char* msg_pointer, uint16_t msg_size);
 void freeDataObjects(Data* objects, int num);
+//void placeDataWithIndexMap(Data* object, char* data_pointer, uint64_t num_elems, size_t elem_size, ByteOrder data_byte_order, const uint64_t* index_map);
+void placeDataWithIndexMap(Data* object, char* data_pointer, uint64_t num_elems, size_t elem_size, const uint64_t* index_map);
 
 double convertHexToFloatingPoint(uint64_t hex);
 int roundUp(int numToRound);
 uint64_t getBytesAsNumber(char* chunk_start, int num_bytes);
-void indToSub(int index, uint32_t* dims, uint32_t* indices);
+void indToSub(int index, uint32_t* dims, uint64_t* indices);
+int subToInd(uint32_t* dims, uint64_t* indices);
+void reverseBytes(char* data_pointer, size_t num_elems);
 
 void enqueuePair(Addr_Pair pair);
 void flushQueue();
