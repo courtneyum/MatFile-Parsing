@@ -32,7 +32,9 @@ Data* getDataObject(char* filename, char variable_name[], int* num_objects)
 	//find superblock
 	s_block = getSuperblock(fd, file_size);
 
+	printf("\nRoot tree address is at 0x");
 	root_tree_address = queue.pairs[queue.front].tree_address;
+	printf("%lx\n", root_tree_address);
 
 	printf("\nObject header for variable %s is at 0x", variable_name);
 	findHeaderAddress(filename, variable_name);
@@ -138,20 +140,20 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 							object->chunk.dims[j] = getBytesAsNumber(msg_pointer + 3 + s_block.size_of_offsets + (-j + object->chunk.num_dims - 2)*4, 4);
 						}
 						object->chunk.elem_size = getBytesAsNumber(msg_pointer + 3 + s_block.size_of_offsets + object->chunk.num_dims*4 - 4, 4);
-						break;
-				}
 
-				uint64_t cu, du;
-				for(int i = 0; i < object->num_dims; i++)
-				{
-					du = 1;
-					cu = 0;
-					for(int k = 0; k < i + 1; k++)
-					{
-						cu += (object->chunk.dims[k] - 1)*du;
-						du *= object->dims[k];
-					}
-					object->chunk.chunk_update[i] = du - cu - 1;
+						uint64_t cu, du;
+						for(int i = 0; i < object->num_dims; i++)
+						{
+							du = 1;
+							cu = 0;
+							for(int k = 0; k < i + 1; k++)
+							{
+								cu += (object->chunk.dims[k] - 1)*du;
+								du *= object->dims[k];
+							}
+							object->chunk.chunk_update[i] = du - cu - 1;
+						}
+						break;
 				}
 				
 				break;

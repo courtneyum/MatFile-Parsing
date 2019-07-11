@@ -6,10 +6,13 @@ void printCell(Data* object);
 void printStruct(Data* object);
 void printChar(Data* object);
 
+//param 1: filename
+//param 2: name of variable to retrieve from file
 int main (int argc, char* argv[])
 {
-	char* filename = argv[1];
-	char variable_name[30];
+	char* filename = (char *)malloc(strlen(argv[1]));
+	char* variable_name = (char *)malloc(strlen(argv[2]));
+	strcpy(filename, argv[1]);
 	strcpy(variable_name, argv[2]);
 	int* num_objs = (int *)malloc(sizeof(int));
 	Data* objects = getDataObject(filename, variable_name, num_objs);
