@@ -99,19 +99,58 @@ void printCell(Data* object)
 	printf("\n%s:\n", object->name);
 	Data* cell_objects = object->sub_objects;
 
-	int num_elems = 1;
+	uint16_t ushort_data;
+
+	int num_elems;
+	int num_dims_object;
+	int d;
+
+	int num_objects = 1;
 	int num_dims = 0;
-	int i = 0;
-	while(object->dims[i] > 0)
+	d = 0;
+	while(object->dims[d] > 0)
 	{
-		num_elems *= object->dims[i];
+		num_objects *= object->dims[d];
 		num_dims++;
-		i++;
+		d++;
 	}
 
-	for (i = 0; i < num_elems; i++)
+	for (int i = 0; i < num_objects; i++)
 	{
-		printf("%f ", cell_objects[i].double_data[0]);
+		num_elems = 1;
+		num_dims_object = 0;
+		d = 0;
+		while(cell_objects[i].dims[d] > 0)
+		{
+			num_elems *= cell_objects[i].dims[d];
+			num_dims_object++;
+			d++;
+		}
+		for (int j = 0; j < num_elems; j++)
+		{
+			switch (cell_objects[i].type)
+			{
+				case UINT16_T:
+					ushort_data = cell_objects[i].ushort_data[j];
+
+					if (j == num_elems - 1)
+					{
+						printf("%c ", (char)ushort_data);
+					}
+					else
+					{
+						printf("%c", (char)ushort_data);
+					}
+					break;
+				case DOUBLE:
+					printf("%f ", cell_objects[i].double_data[j]);
+					break;
+				default:
+					printf("Cell object %d has other type: %d\n", i, cell_objects[i].type);
+					break;
+			}
+			//fflush(stdout);
+		}
 		for (int j = 0; j < num_dims - 1; j++)
 		{
 			if ((i + 1) % object->dims[j] == 0)
@@ -119,13 +158,19 @@ void printCell(Data* object)
 				printf("\n");
 			}
 		}
+			
 	}
 	printf("\n");
 }
 void printStruct(Data* object)
 {
-	printf("\n%s fields: \n", object->name);
+	if (object->sub_objects == NULL)
+	{
+		printf("Object %s does not have a field of the requested name.\n", object->name);
+		return;
+	}
 
+	printf("\n%s fields: \n", object->name);
 	int index = 0;
 	while (object->sub_objects[index].type != UNDEF)
 	{
