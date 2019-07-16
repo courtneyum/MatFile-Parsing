@@ -44,7 +44,8 @@ double convertHexToFloatingPoint(uint64_t hex)
 	uint64_t temp = (uint64_t)(pow(2, 52) - 1);
 	uint64_t fraction = (uint64_t)hex & temp;
 
-	ret = pow(-1, sign)*pow(2, exponent - 1023);
+	long exp = exponent - 1023; //store in long to handle possible negative exponent
+	ret = pow(-1, sign)*pow(2, exp);
 	double sum = 1;
 
 	long b_i;
