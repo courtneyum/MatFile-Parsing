@@ -4,7 +4,7 @@ Data* getDataObject(char* filename, char variable_name[], int* num_objects)
 {
 	char *header_pointer;
 	uint32_t header_length;
-	uint64_t header_address, root_tree_address;
+	uint64_t header_address;
 	int num_objs = 0;
 	Data* data_objects = (Data *)malloc(MAX_OBJS*sizeof(Data));
 	Object obj;
@@ -32,9 +32,9 @@ Data* getDataObject(char* filename, char variable_name[], int* num_objects)
 	//find superblock
 	s_block = getSuperblock(fd, file_size);
 
-	printf("\nRoot tree address is at 0x");
+	/*printf("\nRoot tree address is at 0x");
 	root_tree_address = queue.pairs[queue.front].tree_address;
-	printf("%lx\n", root_tree_address);
+	printf("%lx\n", root_tree_address);*/
 
 	printf("\nObject header for variable %s is at 0x", variable_name);
 	findHeaderAddress(filename, variable_name);
@@ -75,6 +75,9 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 	object->udouble_data = NULL;
 	object->char_data = NULL;
 	object->ushort_data = NULL;
+
+	object->type = UNDEF;
+	object->dims = NULL;
 	
 	uint16_t num_msgs = getBytesAsNumber(header_pointer + 2, 2);
 
@@ -82,42 +85,62 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 	uint16_t name_size, datatype_size, dataspace_size;
 	uint16_t msg_type = 0;
 	uint16_t msg_size = 0;
-	uint32_t attribute_data_size, header_length;
+	uint32_t attribute_data_size;
 	uint64_t msg_address = 0;
+	uint64_t prev_header_address;
 	char* msg_pointer, *data_pointer;
 	int index, num_elems = 1;
 	char name[NAME_LENGTH];
-	int elem_size;
+	int elem_size, offset, continuation_length;
+	uint8_t header_continuation = FALSE;
 
 	uint64_t bytes_read = 0;
+	uint64_t prev_bytes_read, prev_bytes_mapped;
 
 	//interpret messages in header
 	for (int i = 0; i < num_msgs; i++)
 	{
-		msg_type = getBytesAsNumber(header_pointer + 16 + bytes_read, 2);
-		msg_address = header_address + 16 + bytes_read;
-		msg_size = getBytesAsNumber(header_pointer + 16 + bytes_read + 2, 2);
-		msg_pointer = header_pointer + 16 + bytes_read + 8;
-		msg_address = header_address + 16 + bytes_read + 8;
+		if (header_continuation)
+		{
+			offset = 0;
+			//header_continuation = FALSE;
+		}
+		else
+		{
+			offset = 16;
+		}
+		msg_type = getBytesAsNumber(header_pointer + offset + bytes_read, 2);
+		msg_address = header_address + offset + bytes_read;
+		msg_size = getBytesAsNumber(header_pointer + offset + bytes_read + 2, 2);
+		msg_pointer = header_pointer + offset + bytes_read + 8;
+		msg_address = header_address + offset + bytes_read + 8;
 
 		switch(msg_type)
 		{
 			case 1: 
 				// Dataspace message
-				object->dims = readDataSpaceMessage(msg_pointer, msg_size);
-					
-				index = 0;
-				while (object->dims[index] > 0)
+				if (object->dims == NULL)
 				{
-					num_elems *= object->dims[index];
-					object->num_dims++;
-					index++;
+					//sometimes there are extra nonsense messages that can overwrite the real value?
+					object->dims = readDataSpaceMessage(msg_pointer, msg_size);
+						
+					index = 0;
+					while (object->dims[index] > 0)
+					{
+						num_elems *= object->dims[index];
+						object->num_dims++;
+						index++;
+					}
+					object->num_elems = num_elems;
 				}
-				object->num_elems = num_elems;
 				break;
 			case 3:
 				// Datatype message
-				readDataTypeMessage(object, msg_pointer, msg_size);
+				if (object->type == UNDEF)
+				{
+					//sometimes there are extra nonsense messages that can overwrite the real value?
+					readDataTypeMessage(object, msg_pointer, msg_size);
+				}
 				break;
 			case 8:
 				// Data Layout message
@@ -130,6 +153,7 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 						break;
 					case 1:
 						//does matlab ever use contiguous storage?
+						printf("Contiguous storage used at header address %lx\n", header_address);
 						break;
 					case 2:
 						object->chunk.num_dims = getBytesAsNumber(msg_pointer + 2, 1);
@@ -176,16 +200,31 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 				break;
 			case 16:
 				//object header continuation message
+				prev_header_address = header_address;
 				header_address = getBytesAsNumber(msg_pointer, s_block.size_of_offsets) + s_block.base_address;
-				header_length = getBytesAsNumber(msg_pointer + s_block.size_of_offsets, s_block.size_of_lengths);
-				header_pointer = navigateTo(header_address - 16, header_length + 16, TREE);
+				//header_length = getBytesAsNumber(msg_pointer + s_block.size_of_offsets, s_block.size_of_lengths);
+				continuation_length = getBytesAsNumber(msg_pointer + s_block.size_of_offsets, s_block.size_of_lengths);
+				prev_bytes_mapped = maps[TREE].bytes_mapped;
+				//header_pointer = navigateTo(header_address - 16, header_length + 16, TREE);
+				header_pointer = navigateTo(header_address, continuation_length, TREE);
+				prev_bytes_read = bytes_read + msg_size + 8;
 				bytes_read =  0 - msg_size - 8;
+				header_continuation = TRUE;
 			default:
 				//ignore message
 				;
 		}
 			
-		bytes_read += msg_size + 8;	
+		bytes_read += msg_size + 8;
+
+		if (header_continuation && continuation_length > 0 && bytes_read >= continuation_length)
+		{
+			header_address = prev_header_address;
+			header_pointer = navigateTo(header_address, prev_bytes_mapped, TREE);
+			bytes_read = prev_bytes_read;
+			header_continuation = FALSE;
+			continuation_length = 0;
+		}
 	}
 
 	//allocate space for data
@@ -212,7 +251,7 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 			break;
 		default:
 			printf("Unknown data type encountered with header at address 0x%lx\n", header_address);
-			exit(EXIT_FAILURE);
+			//exit(EXIT_FAILURE);
 	}
 
 	//fetch data

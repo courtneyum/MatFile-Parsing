@@ -6,7 +6,7 @@ void printCell(Data* object);
 void printStruct(Data* object);
 void printChar(Data* object);
 
-#define NUM_FILES 4
+#define NUM_FILES 5
 #define SINGLE_TEST 0
 #define ALL_TEST 1
 #define MAX_NAME_SIZE 100
@@ -15,14 +15,12 @@ void printChar(Data* object);
 //param 2: name of variable to retrieve from file
 int main (int argc, char* argv[])
 {
-	double q = pow(-1, 0);
-	printf("%f\n", q);
 	char filename[MAX_NAME_SIZE];
 	char variable_name[MAX_NAME_SIZE];
 	char** filenames;
 	char*** variable_names;
 	int* num_vars;
-	int test_type = SINGLE_TEST;
+	int test_type = ALL_TEST;
 	int num_files;
 
 	if (test_type == ALL_TEST)
@@ -37,12 +35,14 @@ int main (int argc, char* argv[])
 		filenames[1] = "my_struct1.mat";
 		filenames[2] = "my_struct2.mat";
 		filenames[3] = "my_struct3.mat";
+		filenames[4] = "my_struct4.mat";
 
 		num_vars = (int *)malloc(sizeof(int)*num_files);
 		num_vars[0] = 11;
 		num_vars[1] = 7;
 		num_vars[2] = 2;
 		num_vars[3] = 4;
+		num_vars[4] = 4;
 
 		variable_names = (char ***)malloc(sizeof(char **)*NUM_FILES);
 		for (int i =0; i < NUM_FILES; i++)
@@ -77,6 +77,11 @@ int main (int argc, char* argv[])
 		variable_names[3][1] = "md_struct";
 		variable_names[3][2] = "my_struct.cell";
 		variable_names[3][3] = "md_struct.double";
+
+		variable_names[4][0] = "md_struct";
+		variable_names[4][1] = "md_struct.double";
+		variable_names[4][2] = "md_struct.animal";
+		variable_names[4][3] = "md_array";
 	}
 	else
 	{
@@ -137,6 +142,7 @@ int main (int argc, char* argv[])
 			fflush(stdout);
 			freeDataObjects(objects, *num_objs);
 			free(hi_objects);
+			printf("\n***********************************************************************\n");
 		}
 	}
 	fclose(stdout);
