@@ -103,7 +103,6 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 		if (header_continuation)
 		{
 			offset = 0;
-			//header_continuation = FALSE;
 		}
 		else
 		{
@@ -202,10 +201,8 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 				//object header continuation message
 				prev_header_address = header_address;
 				header_address = getBytesAsNumber(msg_pointer, s_block.size_of_offsets) + s_block.base_address;
-				//header_length = getBytesAsNumber(msg_pointer + s_block.size_of_offsets, s_block.size_of_lengths);
 				continuation_length = getBytesAsNumber(msg_pointer + s_block.size_of_offsets, s_block.size_of_lengths);
 				prev_bytes_mapped = maps[TREE].bytes_mapped;
-				//header_pointer = navigateTo(header_address - 16, header_length + 16, TREE);
 				header_pointer = navigateTo(header_address, continuation_length, TREE);
 				prev_bytes_read = bytes_read + msg_size + 8;
 				bytes_read =  0 - msg_size - 8;
