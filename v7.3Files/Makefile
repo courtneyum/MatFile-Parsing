@@ -1,13 +1,16 @@
-CC=clang
-CFLAGS=-c -g -Wall
+CC=gcc
+CFLAGS=-c -g -Wall -std=c99
 
 all: mapping
 
-mapping: userTest.o mapping.o fileHelper.o numberHelper.o queue.o
-	$(CC) userTest.o mapping.o fileHelper.o numberHelper.o queue.o -o mapping -lm
+mapping: userTest.o mman.o mapping.o fileHelper.o numberHelper.o queue.o
+	$(CC) userTest.o mman.o mapping.o fileHelper.o numberHelper.o queue.o -o mapping -lm
 
 userTest.o: userTest.c
 	$(CC) $(CFLAGS) userTest.c
+
+mman.o: mman.c
+	$(CC) $(CFLAGS) mman.c
 
 mapping.o: mapping.c
 	$(CC) $(CFLAGS) mapping.c

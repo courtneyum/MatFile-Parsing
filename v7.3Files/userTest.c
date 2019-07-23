@@ -22,12 +22,14 @@ int main (int argc, char* argv[])
 	int* num_vars;
 	int test_type = ALL_TEST;
 	int num_files;
+	//FILE* s_out;
 
 	if (test_type == ALL_TEST)
 	{
 		//redirect stdout
-		fclose(stdout);
-		stdout = fopen("log.txt", "w");
+		//s_out = freopen("log.txt", "w", stdout);
+		//stdout = s_out;
+
 		num_files = NUM_FILES;
 		//define test cases
 		filenames = (char **)malloc(sizeof(char*)*NUM_FILES);
@@ -110,19 +112,19 @@ int main (int argc, char* argv[])
 			}
 
 			int* num_objs = (int *)malloc(sizeof(int));
+			int* num_super = (int *)malloc(sizeof(int));
 			Data* objects = getDataObject(filename, variable_name, num_objs);
-			Data* hi_objects = organizeObjects(objects, *num_objs);
-			int index = 0;
+			Data* hi_objects = organizeObjects(objects, *num_objs, num_super);
 
 			printf("Variable Name: %s\n", variable_name);
-			while (hi_objects[index].type != UNDEF)
+			for (int index = 0; index < num_super[0]; index++)
 			{
 				switch (hi_objects[index].type)
 				{
-					case DOUBLE:
+					case DOUBLE_T:
 						printDouble(&hi_objects[index]);
 						break;
-					case CHAR:
+					case CHAR_T:
 						printChar(&hi_objects[index]);
 						break;
 					case UINT16_T:
@@ -137,7 +139,6 @@ int main (int argc, char* argv[])
 					default:
 						break;
 				}
-				index++;
 			}
 			fflush(stdout);
 			freeDataObjects(objects, *num_objs);
@@ -243,7 +244,7 @@ void printCell(Data* object)
 						printf("%c", (char)ushort_data);
 					}
 					break;
-				case DOUBLE:
+				case DOUBLE_T:
 					printf("%f ", cell_objects[i].double_data[j]);
 					break;
 				default:
@@ -272,11 +273,9 @@ void printStruct(Data* object)
 	}
 
 	printf("\n%s fields: \n", object->name);
-	int index = 0;
-	while (object->sub_objects[index].type != UNDEF)
+	for (int index = 0; index < object->num_sub_objects; index++)
 	{
 		printf("%s\n", object->sub_objects[index].name);
-		index++;
 	}
 
 	printf("\n");

@@ -6,7 +6,7 @@ Data* getDataObject(char* filename, char variable_name[], int* num_objects)
 	uint32_t header_length;
 	uint64_t header_address;
 	int num_objs = 0;
-	Data* data_objects = (Data *)malloc(MAX_OBJS*sizeof(Data));
+	Data* data_objects = (Data *)calloc(MAX_OBJS,sizeof(Data));
 	Object obj;
 	
 
@@ -86,7 +86,7 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 	uint16_t msg_type = 0;
 	uint16_t msg_size = 0;
 	uint32_t attribute_data_size;
-	uint64_t msg_address = 0;
+	uint64_t msg_address;
 	uint64_t prev_header_address;
 	char* msg_pointer, *data_pointer;
 	int index, num_elems = 1;
@@ -227,7 +227,7 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 	//allocate space for data
 	switch(object->type)
 	{
-		case DOUBLE:
+		case DOUBLE_T:
 			object->double_data = (double *)malloc(num_elems*sizeof(double));
 			elem_size = sizeof(double);
 			break;
@@ -239,7 +239,7 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 			object->udouble_data = (uint64_t *)malloc(num_elems*sizeof(uint64_t));
 			elem_size = sizeof(uint64_t);
 			break;
-		case CHAR:
+		case CHAR_T:
 			object->char_data = (char *)malloc(num_elems*sizeof(char));
 			elem_size = sizeof(char);
 			break;
@@ -305,7 +305,10 @@ void findHeaderAddress(char* filename, char variable_name[])
 	char* heap_pointer;
 	char* token;
 
-	default_bytes = sysconf(_SC_PAGE_SIZE);
+	size_t default_bytes;
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+	default_bytes = si.dwPageSize;
 
 	token = strtok(variable_name, delim);
 
@@ -335,13 +338,15 @@ void findHeaderAddress(char* filename, char variable_name[])
 	}
 	//printf("0x%lx\n", header_address);
 }
-Data* organizeObjects(Data* objects, int num_objs)
+Data* organizeObjects(Data* objects, int num_objs, int* num_super_objects)
 {
-	Data* super_objects = (Data *)malloc(num_objs*sizeof(Data));
-	int num_super = 0, num_temp = 0;
+	Data* super_objects = (Data *)calloc(num_objs,sizeof(Data));
+	num_super_objects[0] = 0;
+	int num_super = 0;
+	int num_temp = 0;
 	int* num_subs = (int *)calloc(num_objs, sizeof(int));
 	int* num_temp_subs = (int *)calloc(num_objs, sizeof(int));
-	Data** temp_objects = (Data **)malloc(num_objs*sizeof(Data*));
+	Data** temp_objects = (Data **)calloc(num_objs,sizeof(Data*));
 	int temp_cell_member, super_cell_member, struct_member;
 	int curr_super_index = -1;
 	int placed;
@@ -371,6 +376,7 @@ Data* organizeObjects(Data* objects, int num_objs)
 					}
 					super_objects[j].sub_objects[num_subs[j]] = objects[i];
 					num_subs[j]++;
+					super_objects[j].num_sub_objects++;
 					curr_super_index = j;
 					placed = TRUE;
 				}
@@ -403,6 +409,7 @@ Data* organizeObjects(Data* objects, int num_objs)
 			}
 		}
 	}
+	num_super_objects[0] = num_super;
 	return super_objects;
 }
 void placeDataWithIndexMap(Data* object, char* data_pointer, uint64_t num_elems, size_t elem_size, const uint64_t* index_map)
@@ -421,7 +428,7 @@ void placeDataWithIndexMap(Data* object, char* data_pointer, uint64_t num_elems,
 	int object_data_index = 0;
 	switch(object->type)
 	{
-		case CHAR:
+		case CHAR_T:
 			for(uint64_t j = 0; j < num_elems; j++)
 			{
 				memcpy(&object->char_data[index_map[j]], data_pointer + object_data_index * elem_size, elem_size);
@@ -484,7 +491,7 @@ void placeDataWithIndexMap(Data* object, char* data_pointer, uint64_t num_elems,
 				object_data_index++;
 			}
 			break;*/
-		case DOUBLE:
+		case DOUBLE_T:
 			for(uint64_t j = 0; j < num_elems; j++)
 			{
 				memcpy(&object->double_data[index_map[j]], data_pointer + object_data_index * elem_size, elem_size);

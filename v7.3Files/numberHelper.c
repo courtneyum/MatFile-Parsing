@@ -48,7 +48,7 @@ double convertHexToFloatingPoint(uint64_t hex)
 	ret = pow(-1, sign)*pow(2, exp);
 	double sum = 1;
 
-	long b_i;
+	uint64_t b_i;
 
 	for (int i = 1; i <=52; i++)
 	{

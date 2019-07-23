@@ -18,7 +18,10 @@ Superblock getSuperblock(int fd, size_t file_size)
 char* findSuperblock(int fd, size_t file_size)
 {
 	char* chunk_start = "";
-	size_t page_size = sysconf(_SC_PAGE_SIZE);
+	size_t page_size;
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+	page_size = si.dwPageSize;
 
 	//Assuming that superblock is in first 8 512 byte chunks
 	maps[0].map_start = mmap(NULL, page_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
@@ -28,7 +31,7 @@ char* findSuperblock(int fd, size_t file_size)
 
 	if (maps[0].map_start == NULL || maps[0].map_start == MAP_FAILED)
 	{
-		printf("mmap() unsuccessful, Check errno: %d\n", errno);
+		printf("mmap() unsuccessful in findSuperblock(), Check errno: %d\n", errno);
 		exit(EXIT_FAILURE);
 	}
 
@@ -78,22 +81,26 @@ char* navigateTo(uint64_t address, uint64_t bytes_needed, int map_index)
 			if (munmap(maps[map_index].map_start, maps[map_index].bytes_mapped) != 0)
 			{
 				printf("munmap() unsuccessful in navigateTo(), Check errno: %d\n", errno);
-				printf("1st arg: %s\n2nd arg: %lu\nUsed: %d\n", maps[map_index].map_start, maps[map_index].bytes_mapped, maps[map_index].used);
+				printf("1st arg: %s\n2nd arg: %llu\nUsed: %d\n", maps[map_index].map_start, maps[map_index].bytes_mapped, maps[map_index].used);
 				exit(EXIT_FAILURE);
 			}
 			maps[map_index].used = FALSE;
 		}
 
+		size_t alloc_gran;
+		SYSTEM_INFO si;
+		GetSystemInfo(&si);
+		alloc_gran = si.dwAllocationGranularity;
+
 		//map new page at needed location
-		size_t page_size = sysconf(_SC_PAGE_SIZE);
-		maps[map_index].offset = (off_t)(address/page_size)*page_size;
+		maps[map_index].offset = (off_t)(address/alloc_gran)*alloc_gran;
 		maps[map_index].bytes_mapped = address - maps[map_index].offset + bytes_needed;
 		maps[map_index].map_start = mmap(NULL, maps[map_index].bytes_mapped, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, maps[map_index].offset);
 		
 		maps[map_index].used = TRUE;
 		if (maps[map_index].map_start == NULL || maps[map_index].map_start == MAP_FAILED)
 		{
-			printf("mmap() unsuccessful, Check errno: %d\n", errno);
+			printf("mmap() unsuccessful in navigateTo(), Check errno: %d\n", errno);
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -109,22 +116,26 @@ char* navigateTo_map(MemMap map, uint64_t address, uint64_t bytes_needed, int ma
 			if (munmap(map.map_start, map.bytes_mapped) != 0)
 			{
 				printf("munmap() unsuccessful in navigateTo(), Check errno: %d\n", errno);
-				printf("1st arg: %s\n2nd arg: %lu\nUsed: %d\n", map.map_start, map.bytes_mapped, map.used);
+				printf("1st arg: %s\n2nd arg: %llu\nUsed: %d\n", map.map_start, map.bytes_mapped, map.used);
 				exit(EXIT_FAILURE);
 			}
 			map.used = FALSE;
 		}
 
+		size_t alloc_gran;
+		SYSTEM_INFO si;
+		GetSystemInfo(&si);
+		alloc_gran = si.dwAllocationGranularity;
+
 		//map new page at needed location
-		size_t page_size = sysconf(_SC_PAGE_SIZE);
-		map.offset = (off_t)(address/page_size)*page_size;
+		map.offset = (off_t)(address/alloc_gran)*alloc_gran;
 		map.bytes_mapped = address - map.offset + bytes_needed;
 		map.map_start = mmap(NULL, map.bytes_mapped, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, map.offset);
 		
 		map.used = TRUE;
 		if (map.map_start == NULL || map.map_start == MAP_FAILED)
 		{
-			printf("mmap() unsuccessful, Check errno: %d\n", errno);
+			printf("mmap() unsuccessful in navigateTo_map(), Check errno: %d\n", errno);
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -239,7 +250,7 @@ void readDataTypeMessage(Data* object, char* msg_pointer, uint16_t msg_size)
 			{
 				case 1:
 					//"char"
-					type = CHAR;
+					type = CHAR_T;
 					break;
 				case 2:
 					//"uint16_t"
@@ -254,7 +265,7 @@ void readDataTypeMessage(Data* object, char* msg_pointer, uint16_t msg_size)
 		case 1:
 			//floating point
 			//assume double precision
-			type = DOUBLE;
+			type = DOUBLE_T;
 			break;
 		case 7:
 			//reference (cell), data consists of addresses aka references

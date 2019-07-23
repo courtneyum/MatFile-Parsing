@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/types.h>
@@ -10,6 +9,9 @@
 #include <stdint.h>
 #include <math.h>
 #include <assert.h>
+
+#include "mman.h"
+#include <windows.h>
 
 #define TRUE 1
 #define FALSE 0
@@ -80,8 +82,8 @@ typedef struct
 typedef enum
 {
 	UNDEF,
-	CHAR,
-	DOUBLE,
+	CHAR_T,
+	DOUBLE_T,
 	UINT16_T,
 	REF,
 	STRUCT
@@ -110,6 +112,7 @@ struct data_
 	uint64_t this_tree_address;
 	uint64_t parent_tree_address;
 	Data* sub_objects;
+	int num_sub_objects;
 	Chunk chunk;
 	int num_dims;
 	int num_elems;
@@ -149,7 +152,7 @@ void enqueueObject(Object obj);
 Data* getDataObject(char* filename, char variable_name[], int* num_objs);
 void findHeaderAddress(char* filename, char variable_name[]);
 void collectMetaData(Data* object, uint64_t header_address, char* header_pointer);
-Data* organizeObjects(Data* objects, int num_objects);
+Data* organizeObjects(Data* objects, int num_objects, int* num_super_objects);
 //void deepCopy(Data* dest, Data* source);
 
 MemMap maps[2];
