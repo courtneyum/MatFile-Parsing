@@ -193,7 +193,7 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 					object->matlab_class[attribute_data_size] = 0x0;
 					if(strcmp("struct", object->matlab_class) == 0)
 					{
-						object->type = STRUCT;
+						object->type = STRUCT_T;
 					}
 				}
 				break;
@@ -231,11 +231,11 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 			object->double_data = (double *)malloc(num_elems*sizeof(double));
 			elem_size = sizeof(double);
 			break;
-		case UINT16_T:
+		case UINTEGER16_T:
 			object->ushort_data = (uint16_t *)malloc(num_elems*sizeof(uint16_t));
 			elem_size = sizeof(uint16_t);
 			break;
-		case REF:
+		case REF_T:
 			object->udouble_data = (uint64_t *)malloc(num_elems*sizeof(uint64_t));
 			elem_size = sizeof(uint64_t);
 			break;
@@ -243,7 +243,7 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 			object->char_data = (char *)malloc(num_elems*sizeof(char));
 			elem_size = sizeof(char);
 			break;
-		case STRUCT:
+		case STRUCT_T:
 			//
 			break;
 		default:
@@ -285,7 +285,7 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 	}
 
 	//if we have encountered a cell array, queue up headers for its elements
-	if (object->udouble_data != NULL && object->type == REF)
+	if (object->udouble_data != NULL && object->type == REF_T)
 	{
 		for (int i = 0; i < num_elems; i++)
 		{
@@ -366,7 +366,7 @@ Data* organizeObjects(Data* objects, int num_objs, int* num_super_objects)
 			for (int j = 0; j < num_super; j++)
 			{
 				struct_member = super_objects[j].this_tree_address == objects[i].parent_tree_address;
-				super_cell_member = super_objects[j].type == REF && strcmp(super_objects[j].name, objects[i].name) == 0;
+				super_cell_member = super_objects[j].type == REF_T && strcmp(super_objects[j].name, objects[i].name) == 0;
 				
 				if (struct_member || super_cell_member)
 				{
@@ -383,7 +383,7 @@ Data* organizeObjects(Data* objects, int num_objs, int* num_super_objects)
 			}
 			for (int j = 0; j < num_temp; j++)
 			{
-				temp_cell_member = temp_objects[j]->type == REF && strcmp(temp_objects[j]->name, objects[i].name) == 0;
+				temp_cell_member = temp_objects[j]->type == REF_T && strcmp(temp_objects[j]->name, objects[i].name) == 0;
 				if (temp_cell_member)
 				{
 					if (temp_objects[j]->sub_objects == NULL)
@@ -396,7 +396,7 @@ Data* organizeObjects(Data* objects, int num_objs, int* num_super_objects)
 				}
 			}
 
-			if (placed && (objects[i].type == STRUCT || objects[i].type == REF))
+			if (placed && (objects[i].type == STRUCT_T || objects[i].type == REF_T))
 			{
 				temp_objects[num_temp] = &(super_objects[curr_super_index].sub_objects[num_subs[curr_super_index] - 1]);
 				num_temp++;
@@ -449,7 +449,7 @@ void placeDataWithIndexMap(Data* object, char* data_pointer, uint64_t num_elems,
 				object_data_index++;
 			}
 			break;*/
-		case UINT16_T:
+		case UINTEGER16_T:
 			for(uint64_t j = 0; j < num_elems; j++)
 			{
 				memcpy(&object->ushort_data[index_map[j]], data_pointer + object_data_index * elem_size, elem_size);
@@ -498,14 +498,14 @@ void placeDataWithIndexMap(Data* object, char* data_pointer, uint64_t num_elems,
 				object_data_index++;
 			}
 			break;
-		case REF:
+		case REF_T:
 			for(uint64_t j = 0; j < num_elems; j++)
 			{
 				memcpy(&object->udouble_data[index_map[j]], data_pointer + object_data_index * elem_size, elem_size);
 				object_data_index++;
 			}
 			break;
-		case STRUCT:
+		case STRUCT_T:
 		//case FUNCTION_HANDLE:
 		//case TABLE:
 		default:

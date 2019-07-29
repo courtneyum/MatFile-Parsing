@@ -254,7 +254,7 @@ void readDataTypeMessage(Data* object, char* msg_pointer, uint16_t msg_size)
 					break;
 				case 2:
 					//"uint16_t"
-					type = UINT16_T;
+					type = UINTEGER16_T;
 					break;
 				default:
 					type = UNDEF;
@@ -269,7 +269,7 @@ void readDataTypeMessage(Data* object, char* msg_pointer, uint16_t msg_size)
 			break;
 		case 7:
 			//reference (cell), data consists of addresses aka references
-			type = REF;
+			type = REF_T;
 			break;
 		default:
 			//ignore

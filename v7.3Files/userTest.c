@@ -20,15 +20,12 @@ int main (int argc, char* argv[])
 	char** filenames;
 	char*** variable_names;
 	int* num_vars;
-	int test_type = ALL_TEST;
+	int test_type = SINGLE_TEST;
 	int num_files;
 	//FILE* s_out;
 
 	if (test_type == ALL_TEST)
 	{
-		//redirect stdout
-		//s_out = freopen("log.txt", "w", stdout);
-		//stdout = s_out;
 
 		num_files = NUM_FILES;
 		//define test cases
@@ -93,7 +90,7 @@ int main (int argc, char* argv[])
 	}
 
 
-	for (int i=0; i < NUM_FILES; i++)
+	for (int i=0; i < num_files; i++)
 	{
 		for (int j=0; j < num_vars[i]; j++)
 		{
@@ -127,13 +124,13 @@ int main (int argc, char* argv[])
 					case CHAR_T:
 						printChar(&hi_objects[index]);
 						break;
-					case UINT16_T:
+					case UINTEGER16_T:
 						printShort(&hi_objects[index]);
 						break;
-					case REF:
+					case REF_T:
 						printCell(&hi_objects[index]);
 						break;
-					case STRUCT:
+					case STRUCT_T:
 						printStruct(&hi_objects[index]);
 						break;
 					default:
@@ -146,33 +143,45 @@ int main (int argc, char* argv[])
 			printf("\n***********************************************************************\n");
 		}
 	}
-	fclose(stdout);
+	printf("Tests completed.\n");
 }
 void printDouble(Data* object)
 {
 	int num_elems = 1;
 	int num_dims = 0;
 	int i = 0;
+	printf("Dims:\n");
 	while(object->dims[i] > 0)
 	{
+		printf("%d\n", object->dims[i]);
 		num_elems *= object->dims[i];
 		num_dims++;
 		i++;
 	}
 
+	printf("Num elements: %d\n", num_elems);
+
 	printf("\n%s:\n", object->name);
-	for (i = 0; i < num_elems; i++)
+
+	if (num_elems < 100)
 	{
-		printf("%f ", object->double_data[i]);
-		for (int j = 0; j < num_dims - 1; j++)
+		for (i = 0; i < num_elems; i++)
 		{
-			if ((i + 1) % object->dims[j] == 0)
+			printf("%f ", object->double_data[i]);
+			for (int j = 0; j < num_dims - 1; j++)
 			{
-				printf("\n");
+				if ((i + 1) % object->dims[j] == 0)
+				{
+					printf("\n");
+				}
 			}
 		}
+		printf("\n");
 	}
-	printf("\n");
+	else
+	{
+		printf("Too many elements, not printing.\n");
+	}
 }
 void printShort(Data* object)
 {
@@ -232,7 +241,7 @@ void printCell(Data* object)
 		{
 			switch (cell_objects[i].type)
 			{
-				case UINT16_T:
+				case UINTEGER16_T:
 					ushort_data = cell_objects[i].ushort_data[j];
 
 					if (j == num_elems - 1)

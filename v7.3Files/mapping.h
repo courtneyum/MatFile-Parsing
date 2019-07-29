@@ -84,9 +84,9 @@ typedef enum
 	UNDEF,
 	CHAR_T,
 	DOUBLE_T,
-	UINT16_T,
-	REF,
-	STRUCT
+	UINTEGER16_T,
+	REF_T,
+	STRUCT_T
 } Datatype;
 typedef struct 
 {
