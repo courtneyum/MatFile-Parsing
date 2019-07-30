@@ -228,19 +228,19 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 	switch(object->type)
 	{
 		case DOUBLE_T:
-			object->double_data = (double *)malloc(num_elems*sizeof(double));
+			object->double_data = malloc(num_elems*sizeof(double));
 			elem_size = sizeof(double);
 			break;
 		case UINTEGER16_T:
-			object->ushort_data = (uint16_t *)malloc(num_elems*sizeof(uint16_t));
+			object->ushort_data = malloc(num_elems*sizeof(uint16_t));
 			elem_size = sizeof(uint16_t);
 			break;
 		case REF_T:
-			object->udouble_data = (uint64_t *)malloc(num_elems*sizeof(uint64_t));
+			object->udouble_data = malloc(num_elems*sizeof(uint64_t));
 			elem_size = sizeof(uint64_t);
 			break;
 		case CHAR_T:
-			object->char_data = (char *)malloc(num_elems*sizeof(char));
+			object->char_data = malloc(num_elems*sizeof(char));
 			elem_size = sizeof(char);
 			break;
 		case STRUCT_T:
