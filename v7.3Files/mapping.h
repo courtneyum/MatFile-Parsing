@@ -10,6 +10,8 @@
 #include <math.h>
 #include <assert.h>
 
+#include "mex.h"
+
 #include "mman.h"
 #include <windows.h>
 

@@ -78,6 +78,7 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 
 	object->type = UNDEF;
 	object->dims = NULL;
+	memset(object->matlab_class, '\0', CLASS_LENGTH*sizeof(char)); //if a ref object is classless, then we can differentiate a scalar struct from a non scalar struct
 	
 	uint16_t num_msgs = getBytesAsNumber(header_pointer + 2, 2);
 
@@ -392,6 +393,7 @@ Data* organizeObjects(Data* objects, int num_objs, int* num_super_objects)
 					}
 					temp_objects[j]->sub_objects[num_temp_subs[j]] = objects[i];
 					num_temp_subs[j]++;
+					temp_objects[j]->num_sub_objects++;
 					placed = TRUE;
 				}
 			}
@@ -410,6 +412,8 @@ Data* organizeObjects(Data* objects, int num_objs, int* num_super_objects)
 		}
 	}
 	num_super_objects[0] = num_super;
+	free(num_subs);
+	free(num_temp_subs);
 	return super_objects;
 }
 void placeDataWithIndexMap(Data* object, char* data_pointer, uint64_t num_elems, size_t elem_size, const uint64_t* index_map)

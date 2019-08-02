@@ -1,9 +1,11 @@
-#include "mex.h"
 #include "mapping.h"
 
 mxArray* getDouble(Data* object);
 mxArray* getShort(Data* object);
 mxArray* getCell(Data* object);
+mxArray* getStruct(Data* object);
+mxArray* getMDStruct(Data* sub_objects, const char** fieldnames, int num_fields);
+mxArray* getScalarStruct(Data* sub_objects, const char** fieldnames, int num_fields);
 
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {
@@ -66,7 +68,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 				mexPrintf("Successfully fetched cell.\n");
 				break;
 			case STRUCT_T:
-				//getStruct(&hi_objects[i]);
+				plhs[i] = getStruct(&hi_objects[i]);
+				mexPrintf("Successfully fetched struct.\n");
 				break;
 			default:
 				break;
@@ -141,7 +144,6 @@ mxArray* getShort(Data* object)
 	mxArray* array = mxCreateCharArray(num_dims, dims);
 
 	mxChar* dataPtr = mxGetData(array);
-	mexPrintf("Size of mxChar = %d\n", sizeof(mxChar));
 	memmove(dataPtr, object->ushort_data, num_elems*sizeof(mxChar));
 	mexPrintf("Returning short\n");
 	return array;
@@ -211,30 +213,155 @@ mxArray* getCell(Data* object)
 		}
 			
 	}
-	//mxFree(dims);
+	mxFree(dims);
 	mexPrintf("returning cell\n");
 	return cell_array;
 }
-/*
-void getStruct(Data* object)
+
+mxArray* getStruct(Data* object)
 {
 	if (object->sub_objects == NULL)
 	{
-		printf("Object %s does not have a field of the requested name.\n", object->name);
-		return;
+		mexPrintf("Object %s does not have a field of the requested name.\n", object->name);
+		return NULL;
 	}
+	
+	mxArray* array;
 
-	printf("\n%s fields: \n", object->name);
-	int index = 0;
-	while (object->sub_objects[index].type != UNDEF)
+	//Get field names
+	mexPrintf("Fetching fieldnames\n");
+	Data* sub_objects = object->sub_objects;
+	int num_fields = object->num_sub_objects;
+	char** fieldnames = mxMalloc(num_fields*sizeof(char*));
+	for (int i = 0; i < num_fields; i++)
 	{
-		printf("%s\n", object->sub_objects[index].name);
-		index++;
+		fieldnames[i] = mxMalloc(strlen(sub_objects[i].name)*sizeof(char));
+		strcpy(fieldnames[i], sub_objects[i].name);
+		mexPrintf("Fieldname[%d] = %s\n", i, fieldnames[i]);
 	}
 
-	printf("\n");
+	//Is it scalar or multi dimensional?
+	mexPrintf("Getting struct array dims\n");
+	char* null_str = malloc(CLASS_LENGTH*sizeof(char));
+	memset(null_str, '\0', CLASS_LENGTH*sizeof(char));
+	if (sub_objects[0].type == REF_T && strncmp(sub_objects[0].matlab_class, null_str, CLASS_LENGTH) == 0)
+	{
+		mexPrintf("Fetching md struct\n");
+		array = getMDStruct(sub_objects, (const char**)fieldnames, num_fields);
+		mexPrintf("Fetched md struct\n");
+	}
+	else
+	{
+		mexPrintf("Fetching scalar struct\n");
+		array = getScalarStruct(sub_objects, (const char**)fieldnames, num_fields);
+		mexPrintf("Fetched scalar struct\n");
+	}
+
+	//Free fieldnames
+	mexPrintf("Freeing fieldnames\n");
+	for (int i = 0; i < num_fields; i++)
+	{
+		mxFree(fieldnames[i]);
+	}
+	mxFree(fieldnames);
+
+	free(null_str);
+
+	mexPrintf("Returning struct\n");
 }
-void getChar(Data* object)
+
+mxArray* getMDStruct(Data* sub_objects, const char** fieldnames, int num_fields)
+{
+	uint32_t* object_dims = sub_objects[0].dims;
+	uint32_t num_dims = sub_objects[0].num_dims;
+	uint32_t num_elems = sub_objects[0].num_elems;
+	Data* current_obj;
+	mxArray* field;
+
+	//Reverse order of dims
+	mwSize* dims = mxMalloc(num_dims*sizeof(mwSize));
+	for (int i = 0; i < num_dims; i++)
+	{
+		dims[i] = object_dims[num_dims - 1 - i];
+		mexPrintf("dims[%d] = %d\n", i, dims[i]);
+	}
+
+	//Create struct array
+	mxArray* array = mxCreateStructArray(num_dims, dims, num_fields, fieldnames);
+
+	//Populate struct array
+	mexPrintf("Populating struct array\n");
+	mexPrintf("Num fields = %d\n", num_fields);
+	for (int i = 0; i < num_fields; i++)
+	{
+		mexPrintf("Num sub objects = %d\n", sub_objects[i].num_sub_objects);
+		for (int j = 0; j < sub_objects[i].num_sub_objects; j++)
+		{
+			current_obj = &(sub_objects[i].sub_objects[j]);
+			switch (current_obj->type)
+			{
+				case UINTEGER16_T:
+					field = getShort(current_obj);
+					break;
+				case DOUBLE_T:
+					field = getDouble(current_obj);
+					break;
+				case REF_T:
+					field = getCell(current_obj);
+					break;
+				default:
+					mexPrintf("Struct field %d has other type: %d\n", i, sub_objects[i].type);
+					break;
+			}
+			mexPrintf("Setting field %d at index %d\n", i, j);
+			mxSetFieldByNumber(array, j, i, field);
+		}
+	}
+	mxFree(dims);
+	return array;
+}
+
+mxArray* getScalarStruct(Data* sub_objects, const char** fieldnames, int num_fields)
+{
+	uint32_t num_dims = 2;
+	uint32_t num_elems = 1;
+	Data* current_obj;
+	mxArray* field;
+
+	//Reverse order of dims
+	mwSize* dims = mxMalloc(num_dims*sizeof(mwSize));
+	dims[0] = 1;
+	dims[1] = 1;
+
+	//Create struct array
+	mxArray* array = mxCreateStructArray(num_dims, dims, num_fields, fieldnames);
+
+	mexPrintf("Num fields = %d\n", num_fields);
+	for (int i = 0; i < num_fields; i++)
+	{
+		current_obj = &sub_objects[i];
+		switch (current_obj->type)
+		{
+			case UINTEGER16_T:
+				field = getShort(current_obj);
+				break;
+			case DOUBLE_T:
+				field = getDouble(current_obj);
+				break;
+			case REF_T:
+				field = getCell(current_obj);
+				break;
+			default:
+				mexPrintf("Struct field %d has other type: %d\n", i, sub_objects[i].type);
+				break;
+		}
+		mexPrintf("Setting field %d at index %d\n", i, 1);
+		mxSetFieldByNumber(array, 1, i, field);
+	}
+	mxFree(dims);
+	return array;
+}
+/*void getChar(Data* object)
 {
 	printf("%s:\n", object->name);
 
