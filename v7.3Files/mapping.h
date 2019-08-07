@@ -9,8 +9,6 @@
 #include <math.h>
 #include <assert.h>
 
-#include "mex.h"
-
 #include "mman.h"
 #include <windows.h>
 
@@ -131,6 +129,7 @@ void readSnod(char* snod_pointer, char* heap_pointer, char* var_name, uint64_t p
 uint32_t* readDataSpaceMessage(char* msg_pointer, uint16_t msg_size);
 void readDataTypeMessage(Data* object, char* msg_pointer, uint16_t msg_size);
 void freeDataObjects(Data* objects, int num);
+void deepCopyDataObject(Data* dest, Data* src);
 //void placeDataWithIndexMap(Data* object, char* data_pointer, uint64_t num_elems, size_t elem_size, ByteOrder data_byte_order, const uint64_t* index_map);
 void placeDataWithIndexMap(Data* object, char* data_pointer, uint64_t num_elems, size_t elem_size, const uint64_t* index_map);
 

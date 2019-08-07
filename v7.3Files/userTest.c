@@ -139,7 +139,8 @@ int main (int argc, char* argv[])
 			}
 			fflush(stdout);
 			freeDataObjects(objects, *num_objs);
-			free(hi_objects);
+			freeDataObjects(hi_objects, *num_super);
+			//free(hi_objects);
 			printf("\n***********************************************************************\n");
 		}
 	}

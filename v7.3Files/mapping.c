@@ -78,6 +78,7 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 
 	object->type = UNDEF;
 	object->dims = NULL;
+	object->sub_objects = NULL;
 	memset(object->matlab_class, '\0', CLASS_LENGTH*sizeof(char)); //if a ref object is classless, then we can differentiate a scalar struct from a non scalar struct
 	
 	uint16_t num_msgs = getBytesAsNumber(header_pointer + 2, 2);
@@ -360,7 +361,9 @@ Data* organizeObjects(Data* objects, int num_objs, int* num_super_objects)
 		placed = FALSE;
 		if (objects[i].parent_tree_address == s_block.root_tree_address)
 		{
-			super_objects[num_super] = objects[i];
+			deepCopyDataObject(&super_objects[num_super], &objects[i]);
+			super_objects[num_super].sub_objects = NULL;
+			//super_objects[num_super] = objects[i];
 			placed = TRUE;
 			num_super++;
 		}
@@ -377,7 +380,9 @@ Data* organizeObjects(Data* objects, int num_objs, int* num_super_objects)
 					{
 						super_objects[j].sub_objects = (Data *)malloc(num_objs*sizeof(Data));
 					}
-					super_objects[j].sub_objects[num_subs[j]] = objects[i];
+					deepCopyDataObject(&super_objects[j].sub_objects[num_subs[j]], &objects[i]);
+					super_objects[j].sub_objects[num_subs[j]].sub_objects = NULL;
+					//super_objects[j].sub_objects[num_subs[j]] = objects[i];
 					num_subs[j]++;
 					super_objects[j].num_sub_objects++;
 					curr_super_index = j;
@@ -394,7 +399,9 @@ Data* organizeObjects(Data* objects, int num_objs, int* num_super_objects)
 					{
 						temp_objects[j]->sub_objects = (Data *)malloc(num_objs*sizeof(Data));
 					}
-					temp_objects[j]->sub_objects[num_temp_subs[j]] = objects[i];
+					deepCopyDataObject(&temp_objects[j]->sub_objects[num_temp_subs[j]], &objects[i]);
+					temp_objects[j]->sub_objects[num_temp_subs[j]].sub_objects = NULL;
+					//temp_objects[j]->sub_objects[num_temp_subs[j]] = objects[i];
 					num_temp_subs[j]++;
 					temp_objects[j]->num_sub_objects++;
 					placed = TRUE;
@@ -405,7 +412,9 @@ Data* organizeObjects(Data* objects, int num_objs, int* num_super_objects)
 					{
 						temp_objects[j]->sub_objects = (Data *)malloc(num_objs*sizeof(Data));
 					}
-					temp_objects[j]->sub_objects[num_temp_subs[j]] = objects[i];
+					deepCopyDataObject(&temp_objects[j]->sub_objects[num_temp_subs[j]], &objects[i]);
+					temp_objects[j]->sub_objects[num_temp_subs[j]].sub_objects = NULL;
+					//temp_objects[j]->sub_objects[num_temp_subs[j]] = objects[i];
 					num_temp_subs[j]++;
 					temp_objects[j]->num_sub_objects++;
 					placed = TRUE;
@@ -420,7 +429,9 @@ Data* organizeObjects(Data* objects, int num_objs, int* num_super_objects)
 
 			if (!placed)
 			{
-				super_objects[num_super] = objects[i];
+				deepCopyDataObject(&super_objects[num_super], &objects[i]);
+				super_objects[num_super].sub_objects = NULL;
+				//super_objects[num_super] = objects[i];
 				num_super++;
 			}
 		}

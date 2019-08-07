@@ -1,4 +1,5 @@
 #include "mapping.h"
+#include "mex.h"
 
 mxArray* getDouble(Data* object);
 mxArray* getShort(Data* object);
@@ -41,14 +42,14 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 
 	mexPrintf("Variable name: %s\n", variable_name);
 
-	int* num_objs = malloc(sizeof(int));
-	int* num_super = malloc(sizeof(int));
-	Data* objects = getDataObject(filename, variable_name, num_objs);
+	int num_objs;
+	int num_super;
+	Data* objects = getDataObject(filename, variable_name, &num_objs);
 	mexPrintf("Finished fetching data objects.\n");
-	Data* hi_objects = organizeObjects(objects, *num_objs, num_super);
+	Data* hi_objects = organizeObjects(objects, num_objs, &num_super);
 	mexPrintf("Finished organizing data objects.\n");
 
-	for (int i = 0; i < *num_super; i++)
+	for (int i = 0; i < num_super; i++)
 	{
 		mexPrintf("Type: %d\n", hi_objects[i].type);
 		switch (hi_objects[i].type)
@@ -78,12 +79,10 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 		}
 	}
 
-	freeDataObjects(objects, *num_objs);
-	free(num_objs);
-	free(hi_objects);
+	freeDataObjects(objects, num_objs);
+	freeDataObjects(hi_objects, num_super);
 	mxFree(filename);
 	mxFree(variable_name);
-	free(num_super);
 	mexPrintf("Complete.\n");
 }
 mxArray* getDouble(Data* object)
