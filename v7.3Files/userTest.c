@@ -17,8 +17,8 @@ int main (int argc, char* argv[])
 {
 	char filename[MAX_NAME_SIZE];
 	char variable_name[MAX_NAME_SIZE];
-	char** filenames;
-	char*** variable_names;
+	char** filenames = NULL;
+	char*** variable_names = NULL;
 	int* num_vars;
 	int test_type = SINGLE_TEST;
 	int num_files;
@@ -99,13 +99,13 @@ int main (int argc, char* argv[])
 			{
 				//filename = (char *)malloc(strlen(argv[1]));
 				//variable_name = (char *)malloc(strlen(argv[2]));
-				strcpy(filename, argv[1]);
-				strcpy(variable_name, argv[2]);
+				strcpy_s(filename, 100, argv[1]);
+				strcpy_s(variable_name, 100, argv[2]);
 			}
 			else
 			{
-				strcpy(filename, filenames[i]);
-				strcpy(variable_name, variable_names[i][j]);
+				strcpy_s(filename, 100, filenames[i]);
+				strcpy_s(variable_name, 100, variable_names[i][j]);
 			}
 
 			int* num_objs = (int *)malloc(sizeof(int));

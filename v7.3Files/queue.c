@@ -28,7 +28,7 @@ void enqueueObject(Object obj)
 		exit(EXIT_FAILURE);
 	}
 	header_queue.objects[header_queue.back].obj_header_address = obj.obj_header_address;
-	strcpy(header_queue.objects[header_queue.back].name, obj.name);
+	strcpy_s(header_queue.objects[header_queue.back].name, NAME_LENGTH, obj.name);
 	header_queue.objects[header_queue.back].this_tree_address = obj.this_tree_address;
 	header_queue.objects[header_queue.back].prev_tree_address = obj.prev_tree_address;
 	header_queue.length++;
@@ -73,7 +73,7 @@ void priorityEnqueueObject(Object obj)
 	if (header_queue.front - 1 < 0)
 	{
 		header_queue.objects[MAX_Q_LENGTH - 1].obj_header_address = obj.obj_header_address;
-		strcpy(header_queue.objects[MAX_Q_LENGTH - 1].name, obj.name);
+		strcpy_s(header_queue.objects[MAX_Q_LENGTH - 1].name, NAME_LENGTH, obj.name);
 		header_queue.objects[MAX_Q_LENGTH - 1].this_tree_address = obj.this_tree_address;
 	header_queue.objects[MAX_Q_LENGTH - 1].prev_tree_address = obj.prev_tree_address;
 		header_queue.front = MAX_Q_LENGTH - 1;
@@ -81,7 +81,7 @@ void priorityEnqueueObject(Object obj)
 	else
 	{
 		header_queue.objects[header_queue.front - 1].obj_header_address = obj.obj_header_address;
-		strcpy(header_queue.objects[header_queue.front - 1].name, obj.name);
+		strcpy_s(header_queue.objects[header_queue.front - 1].name, NAME_LENGTH, obj.name);
 		header_queue.objects[header_queue.front].this_tree_address = obj.this_tree_address;
 	header_queue.objects[header_queue.front].prev_tree_address = obj.prev_tree_address;
 		header_queue.front--;
@@ -108,7 +108,7 @@ Object dequeueObject()
 {
 	Object obj;
 	obj.obj_header_address = header_queue.objects[header_queue.front].obj_header_address;
-	strcpy(obj.name, header_queue.objects[header_queue.front].name);
+	strcpy_s(obj.name, NAME_LENGTH, header_queue.objects[header_queue.front].name);
 	obj.prev_tree_address = header_queue.objects[header_queue.front].prev_tree_address;
 	obj.this_tree_address = header_queue.objects[header_queue.front].this_tree_address;
 	if (header_queue.front + 1 < MAX_Q_LENGTH)

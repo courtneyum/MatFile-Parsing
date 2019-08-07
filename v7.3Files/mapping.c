@@ -38,7 +38,7 @@ Data* getDataObject(char* filename, char variable_name[], int* num_objects)
 
 	printf("\nObject header for variable %s is at 0x", variable_name);
 	findHeaderAddress(filename, variable_name);
-	printf("%lx\n", header_queue.objects[header_queue.front].obj_header_address);
+	printf("%llx\n", header_queue.objects[header_queue.front].obj_header_address);
 
 
 	//interpret the header messages
@@ -57,7 +57,7 @@ Data* getDataObject(char* filename, char variable_name[], int* num_objects)
 		{
 			header_pointer = navigateTo(header_address, header_length, TREE);
 		}
-		strcpy(data_objects[num_objs].name, obj.name);
+		strcpy_s(data_objects[num_objs].name, NAME_LENGTH, obj.name);
 		collectMetaData(&data_objects[num_objs], header_address, header_pointer);
 		data_objects[num_objs].parent_tree_address = obj.prev_tree_address;
 		data_objects[num_objs].this_tree_address = obj.this_tree_address;
@@ -89,14 +89,15 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 	uint32_t attribute_data_size;
 	uint64_t msg_address;
 	uint64_t prev_header_address;
-	char* msg_pointer, *data_pointer;
+	char* msg_pointer, *data_pointer = NULL;
 	int index, num_elems = 1;
 	char name[NAME_LENGTH];
 	int elem_size, offset, continuation_length;
 	uint8_t header_continuation = FALSE;
 
-	uint64_t bytes_read = 0;
-	uint64_t prev_bytes_read, prev_bytes_mapped;
+	long bytes_read = 0;
+	long prev_bytes_read;
+	uint64_t prev_bytes_mapped;
 
 	//interpret messages in header
 	for (int i = 0; i < num_msgs; i++)
@@ -153,7 +154,7 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 						break;
 					case 1:
 						//does matlab ever use contiguous storage?
-						printf("Contiguous storage used at header address %lx\n", header_address);
+						printf("Contiguous storage used at header address %llx\n", header_address);
 						break;
 					case 2:
 						object->chunk.num_dims = getBytesAsNumber(msg_pointer + 2, 1);
@@ -186,11 +187,11 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 				name_size = getBytesAsNumber(msg_pointer + 2, 2);
 				datatype_size = getBytesAsNumber(msg_pointer + 4, 2);
 				dataspace_size = getBytesAsNumber(msg_pointer + 6, 2);
-				strncpy(name, msg_pointer + 8, name_size);
+				strncpy_s(name, NAME_LENGTH, msg_pointer + 8, name_size);
 				if (strncmp(name, "MATLAB_class", 11) == 0)
 				{
 					attribute_data_size = getBytesAsNumber(msg_pointer + 8 + roundUp(name_size) + 4, 4);
-					strncpy(object->matlab_class, msg_pointer + 8 + roundUp(name_size) + roundUp(datatype_size) + roundUp(dataspace_size), attribute_data_size);
+					strncpy_s(object->matlab_class, CLASS_LENGTH, msg_pointer + 8 + roundUp(name_size) + roundUp(datatype_size) + roundUp(dataspace_size), attribute_data_size);
 					object->matlab_class[attribute_data_size] = 0x0;
 					if(strcmp("struct", object->matlab_class) == 0)
 					{
@@ -248,7 +249,7 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 			//
 			break;
 		default:
-			printf("Unknown data type encountered with header at address 0x%lx\n", header_address);
+			printf("Unknown data type encountered with header at address 0x%llx\n", header_address);
 			//exit(EXIT_FAILURE);
 	}
 
@@ -281,8 +282,8 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 			//chunked storage
 			break;
 		default:
-			printf("Unknown Layout class encountered with header at address 0x%lx\n", header_address);
-			exit(EXIT_FAILURE);
+			printf("Unknown Layout class encountered with header at address 0x%llx\n", header_address);
+			//exit(EXIT_FAILURE);
 	}
 
 	//if we have encountered a cell array, queue up headers for its elements
@@ -292,7 +293,7 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 		{
 			Object obj;
 			obj.obj_header_address = object->udouble_data[i];
-			strcpy(obj.name, object->name);
+			strcpy_s(obj.name, NAME_LENGTH, object->name);
 			enqueueObject(obj);
 		}
 	}
@@ -305,13 +306,14 @@ void findHeaderAddress(char* filename, char variable_name[])
 	char* tree_pointer;
 	char* heap_pointer;
 	char* token;
+	char* next_token = NULL;
 
 	size_t default_bytes;
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
 	default_bytes = si.dwPageSize;
 
-	token = strtok(variable_name, delim);
+	token = strtok_s(variable_name, delim, &next_token);
 
 	uint64_t prev_tree_address = 0;
 
@@ -334,7 +336,7 @@ void findHeaderAddress(char* filename, char variable_name[])
 			readSnod(tree_pointer, heap_pointer, token, prev_tree_address);
 			prev_tree_address = 0;
 
-			token = strtok(NULL, delim);
+			token = strtok_s(NULL, delim, &next_token);
 		}
 	}
 	//printf("0x%lx\n", header_address);
@@ -348,7 +350,7 @@ Data* organizeObjects(Data* objects, int num_objs, int* num_super_objects)
 	int* num_subs = (int *)calloc(num_objs, sizeof(int));
 	int* num_temp_subs = (int *)calloc(num_objs, sizeof(int));
 	Data** temp_objects = (Data **)calloc(num_objs,sizeof(Data*));
-	int temp_cell_member, super_cell_member, struct_member;
+	int temp_cell_member, super_cell_member, struct_member, temp_struct_member;
 	int curr_super_index = -1;
 	int placed;
 
@@ -385,7 +387,19 @@ Data* organizeObjects(Data* objects, int num_objs, int* num_super_objects)
 			for (int j = 0; j < num_temp; j++)
 			{
 				temp_cell_member = temp_objects[j]->type == REF_T && strcmp(temp_objects[j]->name, objects[i].name) == 0;
+				temp_struct_member = temp_objects[j]->type == STRUCT_T && temp_objects[j]->this_tree_address == objects[i].parent_tree_address;
 				if (temp_cell_member)
+				{
+					if (temp_objects[j]->sub_objects == NULL)
+					{
+						temp_objects[j]->sub_objects = (Data *)malloc(num_objs*sizeof(Data));
+					}
+					temp_objects[j]->sub_objects[num_temp_subs[j]] = objects[i];
+					num_temp_subs[j]++;
+					temp_objects[j]->num_sub_objects++;
+					placed = TRUE;
+				}
+				else if (temp_struct_member)
 				{
 					if (temp_objects[j]->sub_objects == NULL)
 					{

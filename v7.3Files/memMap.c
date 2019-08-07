@@ -6,12 +6,13 @@ mxArray* getCell(Data* object);
 mxArray* getStruct(Data* object);
 mxArray* getMDStruct(Data* sub_objects, const char** fieldnames, int num_fields);
 mxArray* getScalarStruct(Data* sub_objects, const char** fieldnames, int num_fields);
+mxArray* getChar(Data* object);
 
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {
 	char* filename;
 	char* variable_name;
-	int success, index;
+	int success;
 
 	if (nrhs < 2)
 	{
@@ -21,8 +22,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 	mwSize filename_len = mxGetN(prhs[0]);
 	mwSize variable_name_len = mxGetN(prhs[1]);
 
-	filename = malloc((filename_len+1)*sizeof(char));
-	variable_name = malloc((variable_name_len+1)*sizeof(char));
+	filename = mxMalloc((filename_len+1)*sizeof(char));
+	variable_name = mxMalloc((variable_name_len+1)*sizeof(char));
 
 	success = mxGetString(prhs[0], filename, filename_len+1);
 	if (success != 0)
@@ -57,7 +58,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 				mexPrintf("Successfully fetched double.\n");
 				break;
 			case CHAR_T:
-				//getChar(&hi_objects[index]);
+				plhs[i] = getChar(&hi_objects[i]);
+				mexPrintf("Successfully fetched logical.\n");
 				break;
 			case UINTEGER16_T:
 				plhs[i] = getShort(&hi_objects[i]);
@@ -79,8 +81,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 	freeDataObjects(objects, *num_objs);
 	free(num_objs);
 	free(hi_objects);
-	free(filename);
-	free(variable_name);
+	mxFree(filename);
+	mxFree(variable_name);
 	free(num_super);
 	mexPrintf("Complete.\n");
 }
@@ -90,12 +92,14 @@ mxArray* getDouble(Data* object)
 	int num_elems = 1;
 	int num_dims = 0;
 	int i = 0;
-	while(object->dims[i] > 0)
+	/*while(object->dims[i] > 0)
 	{
 		num_elems *= object->dims[i];
 		num_dims++;
 		i++;
-	}
+	}*/
+	num_elems = object->num_elems;
+	num_dims = object->num_dims;
 	mexPrintf("Num elements = %d\n", num_elems);
 
 	//Reverse order of dims
@@ -126,17 +130,19 @@ mxArray* getShort(Data* object)
 	mexPrintf("Fetching short\n");
 	int num_elems = 1;
 	int num_dims = 0;
-	int i = 0;
+	/*int i = 0;
 	while(object->dims[i] > 0)
 	{
 		num_elems *= object->dims[i];
 		num_dims++;
 		i++;
-	}
+	}*/
+	num_elems = object->num_elems;
+	num_dims = object->num_dims;
 
 	//Reverse order of dims
 	mwSize* dims = mxMalloc(num_dims*sizeof(mwSize));
-	for (i = 0; i < num_dims; i++)
+	for (int i = 0; i < num_dims; i++)
 	{
 		dims[i] = object->dims[num_dims - 1 - i];
 	}
@@ -145,6 +151,7 @@ mxArray* getShort(Data* object)
 
 	mxChar* dataPtr = mxGetData(array);
 	memmove(dataPtr, object->ushort_data, num_elems*sizeof(mxChar));
+	mxFree(dims);
 	mexPrintf("Returning short\n");
 	return array;
 }
@@ -168,13 +175,15 @@ mxArray* getCell(Data* object)
 	mxArray* cell_item;
 
 	//Get cell array dims
-	d = 0;
+	/*d = 0;
 	while(object->dims[d] > 0)
 	{
 		num_objects *= object->dims[d];
 		num_dims++;
 		d++;
-	}
+	}*/
+	num_objects = object->num_elems;
+	num_dims = object->num_dims;
 
 	//Reverse order of dims
 	dims = mxMalloc(num_dims*sizeof(mwSize));
@@ -187,7 +196,7 @@ mxArray* getCell(Data* object)
 
 	for (int i = 0; i < num_objects; i++)
 	{
-		num_elems = 1;
+		/*num_elems = 1;
 		num_dims_item = 0;
 		d = 0;
 		while(cell_objects[i].dims[d] > 0)
@@ -195,22 +204,25 @@ mxArray* getCell(Data* object)
 			num_elems *= cell_objects[i].dims[d];
 			num_dims_item++;
 			d++;
-		}
+		}*/
 		switch (cell_objects[i].type)
 		{
 			mexPrintf("Cell item type %d = %d\n", i, cell_objects[i].type);
 			case UINTEGER16_T:
 				cell_item = getShort(&cell_objects[i]);
-				mxSetCell(cell_array, i, cell_item);
 				break;
 			case DOUBLE_T:
 				cell_item = getDouble(&cell_objects[i]);
-				mxSetCell(cell_array, i, cell_item);
+				break;
+			case CHAR_T:
+				//logical
+				cell_item = getChar(&cell_objects[i]);
 				break;
 			default:
 				mexPrintf("Cell item %d has other type: %d\n", i, cell_objects[i].type);
 				break;
 		}
+		mxSetCell(cell_array, i, cell_item);
 			
 	}
 	mxFree(dims);
@@ -268,6 +280,7 @@ mxArray* getStruct(Data* object)
 	free(null_str);
 
 	mexPrintf("Returning struct\n");
+	return array;
 }
 
 mxArray* getMDStruct(Data* sub_objects, const char** fieldnames, int num_fields)
@@ -308,6 +321,13 @@ mxArray* getMDStruct(Data* sub_objects, const char** fieldnames, int num_fields)
 					break;
 				case REF_T:
 					field = getCell(current_obj);
+					break;
+				case CHAR_T:
+					//logical
+					field = getChar(current_obj);
+					break;
+				case STRUCT_T:
+					field = getStruct(current_obj);
 					break;
 				default:
 					mexPrintf("Struct field %d has other type: %d\n", i, sub_objects[i].type);
@@ -351,41 +371,41 @@ mxArray* getScalarStruct(Data* sub_objects, const char** fieldnames, int num_fie
 			case REF_T:
 				field = getCell(current_obj);
 				break;
+			case CHAR_T:
+				//logical
+				field = getChar(current_obj);
+				break;
+			case STRUCT_T:
+				field = getStruct(current_obj);
+				break;
 			default:
 				mexPrintf("Struct field %d has other type: %d\n", i, sub_objects[i].type);
 				break;
 		}
 		mexPrintf("Setting field %d at index %d\n", i, 1);
-		mxSetFieldByNumber(array, 1, i, field);
+		mxSetFieldByNumber(array, 0, i, field);
 	}
 	mxFree(dims);
 	return array;
 }
-/*void getChar(Data* object)
+mxArray* getChar(Data* object)
 {
-	printf("%s:\n", object->name);
+	int num_elems = object->num_elems;
+	int num_dims = object->num_dims;
 
-	int num_elems = 1;
-	int num_dims = 0;
-	int i = 0;
-	while(object->dims[i] > 0)
+	//Reverse order of dims
+	mwSize* dims = mxMalloc(num_dims*sizeof(mwSize));
+	for (int i = 0; i < num_dims; i++)
 	{
-		num_elems *= object->dims[i];
-		num_dims++;
-		i++;
+		dims[i] = object->dims[num_dims - 1 - i];
+		mexPrintf("dims[%d] = %d\n", i, dims[i]);
 	}
 
-	for (i = 0; i < num_elems; i++)
-	{
-		printf("%d ", object->char_data[i]);
-		for (int j = 0; j < num_dims - 1; j++)
-		{
-			if ((i + 1) % object->dims[j] == 0)
-			{
-				printf("\n");
-			}
-		}
-	}
-	printf("\n");
+	mxArray* array = mxCreateLogicalArray(num_dims, dims);
+	mxLogical* dataPtr = mxGetData(array);
+	memmove(dataPtr, object->char_data, num_elems*sizeof(mxLogical));
 
-}*/
+	mxFree(dims);
+	return array;
+
+}

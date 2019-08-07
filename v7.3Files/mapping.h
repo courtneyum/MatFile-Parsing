@@ -4,7 +4,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/types.h>
-#include <unistd.h>
 #include <errno.h>
 #include <stdint.h>
 #include <math.h>
@@ -59,8 +58,8 @@ typedef struct
 typedef struct 
 {
 	char* map_start;
-	uint64_t bytes_mapped;
-	uint64_t offset;
+	size_t bytes_mapped;
+	size_t offset;
 	int used;
 } MemMap;
 
@@ -125,8 +124,8 @@ struct data_
 Superblock getSuperblock(int fd, size_t file_size);
 char* findSuperblock(int fd, size_t file_size);
 Superblock fillSuperblock(char* superblock_pointer);
-char* navigateTo(uint64_t address, uint64_t bytes_needed, int map_index);
-char* navigateTo_map(MemMap map, uint64_t address, uint64_t bytes_needed, int map_index);
+char* navigateTo(uint64_t address, size_t bytes_needed, int map_index);
+char* navigateTo_map(MemMap map, uint64_t address, size_t bytes_needed, int map_index);
 void readTreeNode(char* tree_address);
 void readSnod(char* snod_pointer, char* heap_pointer, char* var_name, uint64_t prev_tree_address);
 uint32_t* readDataSpaceMessage(char* msg_pointer, uint16_t msg_size);

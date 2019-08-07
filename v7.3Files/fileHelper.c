@@ -71,7 +71,7 @@ Superblock fillSuperblock(char* superblock_pointer)
 
 	return s_block;
 }
-char* navigateTo(uint64_t address, uint64_t bytes_needed, int map_index)
+char* navigateTo(uint64_t address, size_t bytes_needed, int map_index)
 {
 	if (!(maps[map_index].used && address >= maps[map_index].offset && address + bytes_needed < maps[map_index].offset + maps[map_index].bytes_mapped))
 	{
@@ -81,7 +81,7 @@ char* navigateTo(uint64_t address, uint64_t bytes_needed, int map_index)
 			if (munmap(maps[map_index].map_start, maps[map_index].bytes_mapped) != 0)
 			{
 				printf("munmap() unsuccessful in navigateTo(), Check errno: %d\n", errno);
-				printf("1st arg: %s\n2nd arg: %llu\nUsed: %d\n", maps[map_index].map_start, maps[map_index].bytes_mapped, maps[map_index].used);
+				printf("1st arg: %s\n2nd arg: %lu\nUsed: %d\n", maps[map_index].map_start, maps[map_index].bytes_mapped, maps[map_index].used);
 				exit(EXIT_FAILURE);
 			}
 			maps[map_index].used = FALSE;
@@ -106,7 +106,7 @@ char* navigateTo(uint64_t address, uint64_t bytes_needed, int map_index)
 	}
 	return maps[map_index].map_start + address - maps[map_index].offset;
 }
-char* navigateTo_map(MemMap map, uint64_t address, uint64_t bytes_needed, int map_index)
+char* navigateTo_map(MemMap map, uint64_t address, size_t bytes_needed, int map_index)
 {
 	if (!(map.used && address >= map.offset && address + bytes_needed < map.offset + map.bytes_mapped))
 	{
@@ -116,7 +116,7 @@ char* navigateTo_map(MemMap map, uint64_t address, uint64_t bytes_needed, int ma
 			if (munmap(map.map_start, map.bytes_mapped) != 0)
 			{
 				printf("munmap() unsuccessful in navigateTo(), Check errno: %d\n", errno);
-				printf("1st arg: %s\n2nd arg: %llu\nUsed: %d\n", map.map_start, map.bytes_mapped, map.used);
+				printf("1st arg: %s\n2nd arg: %lu\nUsed: %d\n", map.map_start, map.bytes_mapped, map.used);
 				exit(EXIT_FAILURE);
 			}
 			map.used = FALSE;
@@ -189,7 +189,7 @@ void readSnod(char* snod_pointer, char* heap_pointer, char* var_name, uint64_t p
 		objects[i].this_tree_address = 0;
 		objects[i].name_offset = getBytesAsNumber(snod_pointer + SYM_TABLE_ENTRY_SIZE*i, s_block.size_of_offsets);
 		objects[i].obj_header_address = getBytesAsNumber(snod_pointer + SYM_TABLE_ENTRY_SIZE*i + s_block.size_of_offsets, s_block.size_of_offsets) + s_block.base_address;
-		strcpy(objects[i].name, heap_pointer + 8 + 2*s_block.size_of_lengths + s_block.size_of_offsets + objects[i].name_offset);
+		strcpy_s(objects[i].name, NAME_LENGTH, heap_pointer + 8 + 2*s_block.size_of_lengths + s_block.size_of_offsets + objects[i].name_offset);
 		cache_type = getBytesAsNumber(snod_pointer + 2*s_block.size_of_offsets + SYM_TABLE_ENTRY_SIZE*i, 4);
 		objects[i].prev_tree_address = prev_tree_address;
 
@@ -212,7 +212,15 @@ void readSnod(char* snod_pointer, char* heap_pointer, char* var_name, uint64_t p
 		}
 		else if (var_name == NULL)
 		{
-			//objects[i].this_tree_address = UNDEF_ADDR;
+			//if another tree exists for this object, put it on the queue
+			if (cache_type == 1)
+			{
+				pair.tree_address = getBytesAsNumber(snod_pointer + 2*s_block.size_of_offsets + 8 + SYM_TABLE_ENTRY_SIZE*i, s_block.size_of_offsets) + s_block.base_address;
+				pair.heap_address = getBytesAsNumber(snod_pointer + 3*s_block.size_of_offsets + 8 + SYM_TABLE_ENTRY_SIZE*i, s_block.size_of_offsets) + s_block.base_address;
+				objects[i].this_tree_address = pair.tree_address;
+				flushQueue();
+				priorityEnqueuePair(pair);
+			}
 			enqueueObject(objects[i]);
 		}
 	}
