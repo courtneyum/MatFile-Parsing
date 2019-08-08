@@ -65,6 +65,16 @@ Data* getDataObject(char* filename, char variable_name[], int* num_objects)
 		num_objs++;
 	}
 	num_objects[0] = num_objs;
+
+	//unmap memory
+	if (maps[0].used)
+	{
+		maps[0] = unmap(maps[0], "getDataObject0");
+	}
+	if (maps[1].used)
+	{
+		maps[1] = unmap(maps[1], "getDataObject1");
+	}
 	close(fd);
 	return data_objects;
 }

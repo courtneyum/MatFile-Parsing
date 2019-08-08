@@ -5,13 +5,10 @@ Superblock getSuperblock(int fd, size_t file_size)
 	char* superblock_pointer = findSuperblock(fd, file_size);
 	Superblock s_block = fillSuperblock(superblock_pointer);
 
-	//unmap superblock
-	if (munmap(maps[0].map_start, maps[0].bytes_mapped) != 0)
+	if (maps[0].used)
 	{
-		printf("munmap() unsuccessful in getSuperblock(), Check errno: %d\n", errno);
-		exit(EXIT_FAILURE);
+		maps[0] = unmap(maps[0], "getSuperblock");
 	}
-	maps[0].used = FALSE;
 
 	return s_block;
 }
@@ -78,13 +75,7 @@ char* navigateTo(uint64_t address, size_t bytes_needed, int map_index)
 		//unmap current page if used
 		if (maps[map_index].used)
 		{
-			if (munmap(maps[map_index].map_start, maps[map_index].bytes_mapped) != 0)
-			{
-				printf("munmap() unsuccessful in navigateTo(), Check errno: %d\n", errno);
-				printf("1st arg: %s\n2nd arg: %lu\nUsed: %d\n", maps[map_index].map_start, maps[map_index].bytes_mapped, maps[map_index].used);
-				exit(EXIT_FAILURE);
-			}
-			maps[map_index].used = FALSE;
+			maps[map_index] = unmap(maps[map_index], "navigateTo");
 		}
 
 		size_t alloc_gran;
@@ -113,13 +104,7 @@ char* navigateTo_map(MemMap map, uint64_t address, size_t bytes_needed, int map_
 		//unmap current page if used
 		if (map.used)
 		{
-			if (munmap(map.map_start, map.bytes_mapped) != 0)
-			{
-				printf("munmap() unsuccessful in navigateTo(), Check errno: %d\n", errno);
-				printf("1st arg: %s\n2nd arg: %lu\nUsed: %d\n", map.map_start, map.bytes_mapped, map.used);
-				exit(EXIT_FAILURE);
-			}
-			map.used = FALSE;
+			map = unmap(map, "navigateTo_map");
 		}
 
 		size_t alloc_gran;
@@ -232,7 +217,6 @@ uint32_t* readDataSpaceMessage(char* msg_pointer, uint16_t msg_size)
 	//assume version 1 and ignore max dims and permutation indices
 	uint8_t num_dims = *(msg_pointer + 1);
 	uint32_t* dims = malloc((num_dims + 1)*sizeof(uint32_t));
-	//uint64_t bytes_read = 0;
 
 	for (int i = num_dims - 1; i >= 0; i--)
 	{
@@ -378,4 +362,15 @@ void deepCopyDataObject(Data* dest, Data* src)
 	dest->num_dims = src->num_dims;
 	dest->num_elems = src->num_elems;
 	dest->elem_size = src->elem_size;
+}
+MemMap unmap(MemMap map, const char callingFunction[])
+{
+	if (munmap(map.map_start, map.bytes_mapped) != 0)
+	{
+		printf("munmap() unsuccessful in %s, Check errno: %d\n", callingFunction, errno);
+		printf("1st arg: %s\n2nd arg: %lu\nUsed: %d\n", map.map_start, map.bytes_mapped, map.used);
+		exit(EXIT_FAILURE);
+	}
+	map.used = FALSE;
+	return map;
 }
