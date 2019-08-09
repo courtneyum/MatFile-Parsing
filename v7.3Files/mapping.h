@@ -130,7 +130,7 @@ uint32_t* readDataSpaceMessage(char* msg_pointer, uint16_t msg_size);
 void readDataTypeMessage(Data* object, char* msg_pointer, uint16_t msg_size);
 void freeDataObjects(Data* objects, int num);
 void deepCopyDataObject(Data* dest, Data* src);
-MemMap unmap(MemMap map);
+MemMap unmap(MemMap map, const char callingFunction[]);
 //void placeDataWithIndexMap(Data* object, char* data_pointer, uint64_t num_elems, size_t elem_size, ByteOrder data_byte_order, const uint64_t* index_map);
 void placeDataWithIndexMap(Data* object, char* data_pointer, uint64_t num_elems, size_t elem_size, const uint64_t* index_map);
 
