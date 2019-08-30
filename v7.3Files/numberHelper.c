@@ -103,14 +103,29 @@ void indToSub(int index, uint32_t* dims, uint64_t* indices)
 //here indices is an in parameter
 int subToInd(uint32_t* dims, uint64_t* indices)
 {
+	int mult = 1;
+	int plus = 0;
+	int index = 0;
+
+
 	int num_dims = 0;
 	int num_elems = 1;
 	int i = 0;
 	while (dims[i] > 0)
 	{
-		num_elems *= dims[i++];
+		num_elems *= dims[i];
 		num_dims++;
+		i++;
 	}
+
+	for (i = 0; i < num_dims; i++)
+	{
+		plus = indices[i]*mult;
+		index += plus;
+		mult *= dims[i];
+	}
+
+	/*
 	int index = dims[num_dims - 1];
 	int plus = 0;
 	int mult = 1;
@@ -121,6 +136,17 @@ int subToInd(uint32_t* dims, uint64_t* indices)
 		plus = indices[i]*mult;
 		index+= plus;
 		i--;
-	}
+	}*/
 	return index;
+}
+uint64_t* reverseIndices(uint64_t* indices, int num_dims)
+{
+	uint64_t* ret = malloc((num_dims + 1) * sizeof(uint64_t));
+
+	for (int i = 0; i < num_dims; i++)
+	{
+		ret[i] = indices[num_dims - 1 - i];
+	}
+	ret[num_dims] = 0;
+	return ret;
 }

@@ -15,7 +15,7 @@ Data* getDataObject(char* filename, char variable_name[], int* num_objects)
 	maps[1].used = FALSE;
 
 	//init queue
-	flushQueue();
+	flushQueue(GROUP_T, FALSE);
 	flushHeaderQueue();
 
 	//open the file descriptor
@@ -98,7 +98,7 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 	uint16_t msg_type = 0;
 	uint16_t msg_size = 0;
 	uint32_t attribute_data_size;
-	uint64_t msg_address;
+	//uint64_t msg_address;
 	uint64_t prev_header_address;
 	char* msg_pointer, *data_pointer = NULL;
 	int index, num_elems = 1;
@@ -122,10 +122,10 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 			offset = 16;
 		}
 		msg_type = getBytesAsNumber(header_pointer + offset + bytes_read, 2);
-		msg_address = header_address + offset + bytes_read;
+		//msg_address = header_address + offset + bytes_read;
 		msg_size = getBytesAsNumber(header_pointer + offset + bytes_read + 2, 2);
 		msg_pointer = header_pointer + offset + bytes_read + 8;
-		msg_address = header_address + offset + bytes_read + 8;
+		//msg_address = header_address + offset + bytes_read + 8;
 
 		switch(msg_type)
 		{
@@ -176,19 +176,6 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 							object->chunk.dims[j] = getBytesAsNumber(msg_pointer + 3 + s_block.size_of_offsets + (-j + object->chunk.num_dims - 2)*4, 4);
 						}
 						object->chunk.elem_size = getBytesAsNumber(msg_pointer + 3 + s_block.size_of_offsets + object->chunk.num_dims*4 - 4, 4);
-
-						uint64_t cu, du;
-						for(int i = 0; i < object->num_dims; i++)
-						{
-							du = 1;
-							cu = 0;
-							for(int k = 0; k < i + 1; k++)
-							{
-								cu += (object->chunk.dims[k] - 1)*du;
-								du *= object->dims[k];
-							}
-							object->chunk.chunk_update[i] = du - cu - 1;
-						}
 						break;
 				}
 				
@@ -291,6 +278,7 @@ void collectMetaData(Data* object, uint64_t header_address, char* header_pointer
 			break;
 		case 2:
 			//chunked storage
+			getDataFromTree(object, object->chunk.tree_address);
 			break;
 		default:
 			printf("Unknown Layout class encountered with header at address 0x%llx\n", header_address);
@@ -319,6 +307,8 @@ void findHeaderAddress(char* filename, char variable_name[])
 	char* token;
 	char* next_token = NULL;
 
+	Addr_Pair pair;
+
 	size_t default_bytes;
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
@@ -331,19 +321,19 @@ void findHeaderAddress(char* filename, char variable_name[])
 	//search for the object header for the variable
 	while (queue.length > 0)
 	{
-		tree_pointer = navigateTo(queue.pairs[queue.front].tree_address, default_bytes, TREE);
-		heap_pointer = navigateTo(queue.pairs[queue.front].heap_address, default_bytes, HEAP);
+		pair = dequeuePair();
+		tree_pointer = navigateTo(pair.tree_address, default_bytes, TREE);
+		heap_pointer = navigateTo(pair.heap_address, default_bytes, HEAP);
 		assert(strncmp("HEAP", heap_pointer, 4) == 0);
 
 		if (strncmp("TREE", tree_pointer, 4) == 0)
 		{
-			readTreeNode(tree_pointer);
-			prev_tree_address = queue.pairs[queue.front].tree_address;
-			dequeuePair();
+			readTreeNode(tree_pointer, s_block.size_of_lengths, pair.heap_address, pair.tree_address);
+			
+			prev_tree_address = pair.tree_address;
 		}
 		else if (strncmp("SNOD", tree_pointer, 4) == 0)
 		{
-			dequeuePair();
 			readSnod(tree_pointer, heap_pointer, token, prev_tree_address);
 			prev_tree_address = 0;
 
